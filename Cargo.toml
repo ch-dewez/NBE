@@ -1,0 +1,10 @@
+[workspace]
+members = ["crates/core/engine", "crates/executors/editor_executor", "crates/plugins/editor", "crates/plugins/physics", "crates/plugins/renderer", "crates/project_manager", "crates/test/test_project", "crates/test/test_executor", "crates/executors/game_executor", "crates/plugin_templates/physics_template", "crates/plugin_templates/renderer_template", "crates/test/test_ecs", "crates/core/ecs"]
+resolver = "3"
+
+[workspace.dependencies]
+engine = {path = "crates/core/engine"}
+ecs = { path = "crates/core/ecs"}
+
+physics_template = { path = "crates/plugin_templates/physics_template"}
+renderer_template = { path = "crates/plugin_templates/renderer_template"}

@@ -1,0 +1,239 @@
+//
+//
+//
+// IMPORTANT: The tests were writtent by A.I.
+//
+//
+//
+use super::{
+    component::Component, 
+    world::World, 
+    query::{Query, With, Without},
+    system::SystemParam
+};
+
+// --- Components ---
+#[derive(Clone, PartialEq, Debug)]
+struct Position {
+    x: f32,
+    y: f32,
+}
+impl Component for Position {}
+
+#[derive(Clone, PartialEq, Debug)]
+struct Velocity {
+    x: f32,
+    y: f32,
+}
+impl Component for Velocity {}
+
+#[derive(Clone, PartialEq, Debug)]
+struct Health(u32);
+impl Component for Health {}
+
+#[derive(Clone, PartialEq, Debug)]
+struct Name(String);
+impl Component for Name {}
+
+// --- Systems ---
+fn movement_system(query: Query<(& mut Position, & Velocity)>) {
+    for (position, velocity) in query.into_iter() {
+        position.x += velocity.x;
+        position.y += velocity.y;
+    }
+}
+
+fn health_system(query: Query<&mut Health, With<Position>>) {
+    for health in query.into_iter() {
+        health.0 = health.0.saturating_sub(1); // Reduce health, but not below 0
+    }
+}
+
+fn name_logger_system(query: Query<(&Name, &Position), Without<Health>>) {
+    for (name, position) in query.into_iter() {
+        // In a real scenario, this might log to console or a file
+        println!("Entity {} is at ({}, {})", name.0, position.x, position.y);
+    }
+}
+
+// --- Tests ---
+#[test]
+fn test_spawn_entity_no_components() {
+    let mut world = World::new();
+    let entity = world.spawn_entity(&()).0; // Spawning with no components
+    assert_eq!(entity.id, 0);
+    assert_eq!(entity.version, 0);
+}
+
+#[test]
+fn test_spawn_entity_with_components() {
+    let mut world = World::new();
+    let entity = world.spawn_entity(&(Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 })).0;
+    assert_eq!(entity.id, 0);
+    assert_eq!(entity.version, 0);
+
+    // Verify components are present by trying to query
+    let query = Query::<(&Position, &Velocity)>::retrieve(&mut world);
+    let mut iter = query.into_iter();
+    let (pos, vel) = iter.next().expect("Should have one entity with Position and Velocity");
+    assert_eq!(pos, &Position { x: 0.0, y: 0.0 });
+    assert_eq!(vel, &Velocity { x: 1.0, y: 1.0 });
+    assert!(iter.next().is_none());
+}
+
+#[test]
+fn test_remove_entity() {
+    let mut world = World::new();
+    let entity1 = world.spawn_entity(&(Position { x: 0.0, y: 1.0 })).0;
+    let _entity2 = world.spawn_entity(&(Position { x: 1.0, y: 1.0 })).0;
+
+    assert!(world.remove_entity(entity1).is_ok());
+
+    // Entity2 should still exist
+    let query = Query::<&Position>::retrieve(&mut world);
+    let mut iter = query.into_iter();
+    let pos = iter.next().expect("Entity2 should still be present");
+    assert_eq!(pos, &Position { x: 1.0, y: 1.0 });
+    assert!(iter.next().is_none());
+
+    // Spawning a new entity should reuse the ID of entity1
+    let entity3 = world.spawn_entity(&(Health(10))).0;
+    assert_eq!(entity3.id, entity1.id); // Should reuse id 0
+    assert_eq!(entity3.version, entity1.version + 1); // Version should increment
+}
+
+#[test]
+fn test_add_component() {
+    let mut world = World::new();
+    let entity = world.spawn_entity(&(Position { x: 0.0, y: 0.0 })).0;
+
+    // Initially, no Velocity component
+    let query_vel = Query::<&Velocity>::retrieve(&mut world);
+    assert!(query_vel.into_iter().next().is_none());
+
+    // Add Velocity component
+    world.add_component(entity, Velocity { x: 1.0, y: 1.0 }).unwrap();
+
+    // Now, entity should have Position and Velocity
+    let query_pos_vel = Query::<(&Position, &Velocity)>::retrieve(&mut world);
+    let (pos, vel) = query_pos_vel.into_iter().next().expect("Entity should have Position and Velocity");
+    assert_eq!(pos, &Position { x: 0.0, y: 0.0 });
+    assert_eq!(vel, &Velocity { x: 1.0, y: 1.0 });
+
+    // Ensure it's not present in archetypes without Velocity
+    let query_pos_only = Query::<&Position, Without<Velocity>>::retrieve(&mut world);
+    assert!(query_pos_only.into_iter().next().is_none());
+}
+
+#[test]
+fn test_remove_component() {
+    let mut world = World::new();
+    let entity = world.spawn_entity(&(Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 })).0;
+
+    // Initially, entity has both Position and Velocity
+    let query_pos_vel = Query::<(&Position, &Velocity)>::retrieve(&mut world);
+    assert!(query_pos_vel.into_iter().next().is_some());
+
+    // Remove Velocity component
+    world.remove_component::<Velocity>(entity).unwrap();
+
+    // Now, entity should only have Position
+    let query_pos_only = Query::<&Position>::retrieve(&mut world);
+    let mut query_pos_only_iter = query_pos_only.into_iter();
+    let pos = query_pos_only_iter.next().expect("Entity should only have Position");
+    assert_eq!(pos, &Position { x: 0.0, y: 0.0 });
+    assert!(query_pos_only_iter.next().is_none());
+
+    // Should not be in queries for Velocity
+    let query_vel_only = Query::<&Velocity>::retrieve(&mut world);
+    assert!(query_vel_only.into_iter().next().is_none());
+}
+
+#[test]
+fn test_add_remove_sequence() {
+    let mut world = World::new();
+    let entity = world.spawn_entity(&(Position { x: 0.0, y: 0.0 })).0;
+
+    // Add Velocity
+    world.add_component(entity, Velocity { x: 1.0, y: 1.0 }).unwrap();
+    let query1 = Query::<(&Position, &Velocity)>::retrieve(&mut world);
+    assert!(query1.into_iter().next().is_some());
+
+    // Remove Velocity
+    world.remove_component::<Velocity>(entity).unwrap();
+    let query2 = Query::<(&Position, &Velocity)>::retrieve(&mut world);
+    assert!(query2.into_iter().next().is_none());
+    let query3 = Query::<&Position>::retrieve(&mut world);
+    assert!(query3.into_iter().next().is_some());
+
+    // Add Health
+    world.add_component(entity, Health(100)).unwrap();
+    let query4 = Query::<(&Position, &Health)>::retrieve(&mut world);
+    assert!(query4.into_iter().next().is_some());
+    let query5 = Query::<(&Position, &Velocity, &Health)>::retrieve(&mut world);
+    assert!(query5.into_iter().next().is_none());
+}
+
+#[test]
+fn test_movement_system() {
+    let mut world = World::new();
+    world.add_system(movement_system);
+
+    let _entity1 = world.spawn_entity(&(Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 0.5 }));
+    let _entity2 = world.spawn_entity(&(Position { x: 10.0, y: 5.0 }, Velocity { x: -2.0, y: 1.0 }));
+    let _entity3_no_velocity = world.spawn_entity(&(Position { x: 100.0, y: 200.0 })); // Should not move
+
+    world.step(); // Run the system
+
+    let query = Query::<(&Position, &Velocity)>::retrieve(&mut world);
+    let mut results: Vec<(&Position, &Velocity)> = query.into_iter().collect();
+    results.sort_by(|a, b| a.0.x.partial_cmp(&b.0.x).unwrap()); // Sort to ensure consistent order
+
+    assert_eq!(results[0].0, &Position { x: 1.0, y: 0.5 }); 
+    assert_eq!(results[1].0, &Position { x: 8.0, y: 6.0 }); 
+
+    // Verify entity3_no_velocity didn't move
+    let query_no_vel = Query::<&Position, Without<Velocity>>::retrieve(&mut world);
+    let pos_no_vel = query_no_vel.into_iter().next().expect("Entity without velocity should still exist");
+    assert_eq!(pos_no_vel, &Position { x: 100.0, y: 200.0 });
+}
+
+#[test]
+fn test_health_system_with_filter() {
+    let mut world = World::new();
+    world.add_system(health_system);
+
+    let _entity1 = world.spawn_entity(&(Health(10), Position { x: 0.0, y: 0.0 })); // Has Position, will be processed
+    let _entity2 = world.spawn_entity(&(Health(5))); // No Position, should not be processed
+    let _entity3 = world.spawn_entity(&(Health(1), Position { x: 1.0, y: 1.0 }));
+
+    world.step(); // Run the system
+
+    let query_health_pos = Query::<&Health, With<Position>>::retrieve(&mut world);
+    let mut health_values_with_pos: Vec<u32> = query_health_pos.into_iter().map(|h| h.0).collect();
+    health_values_with_pos.sort();
+    assert_eq!(health_values_with_pos, vec![0, 9]);
+
+    let query_health_only = Query::<&Health, Without<Position>>::retrieve(&mut world);
+    let health_only = query_health_only.into_iter().next().expect("Entity2 health should be unchanged");
+    assert_eq!(health_only.0, 5);
+}
+
+#[test]
+fn test_name_logger_system_without_filter() {
+    let mut world = World::new();
+    world.add_system(name_logger_system);
+
+    let _entity1 = world.spawn_entity(&(Name("Alice".to_string()), Position { x: 1.0, y: 2.0 })); // Will be logged
+    let _entity2 = world.spawn_entity(&(Name("Bob".to_string()), Position { x: 3.0, y: 4.0 }, Health(10))); // Has Health, will NOT be logged
+
+    // The system prints, we can't assert output directly without capturing stdout,
+    // but we can ensure it runs without panicking.
+    world.step();
+
+    // To properly test, one would usually capture stdout or mock the logging.
+    // For now, we'll assume no panic means it ran correctly.
+    let query_logged = Query::<(&Name, &Position), Without<Health>>::retrieve(&mut world);
+    assert_eq!(query_logged.into_iter().count(), 1); // Only Alice should match
+}
+

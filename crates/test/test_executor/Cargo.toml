@@ -1,0 +1,8 @@
+[package]
+name = "test_executor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+engine.workspace = true
+test_project = {path="../test_project"}
