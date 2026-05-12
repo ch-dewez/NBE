@@ -77,6 +77,7 @@ macro_rules! impl_system  {
         {
 
             fn run(&mut self, world: &mut World) {
+                #[allow(clippy::too_many_arguments)]
                 fn call_inner<$($params),*> (
                     mut f: impl FnMut($($params),*),
                     $($params: $params),*

@@ -60,7 +60,7 @@ fn name_logger_system(query: Query<(&Name, &Position), Without<Health>>) {
 #[test]
 fn test_spawn_entity_no_components() {
     let mut world = World::new();
-    let entity = world.spawn_entity(&()).0; // Spawning with no components
+    let entity = world.spawn_entity(()).0; // Spawning with no components
     assert_eq!(entity.id, 0);
     assert_eq!(entity.version, 0);
 }
@@ -68,7 +68,7 @@ fn test_spawn_entity_no_components() {
 #[test]
 fn test_spawn_entity_with_components() {
     let mut world = World::new();
-    let entity = world.spawn_entity(&(Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 })).0;
+    let entity = world.spawn_entity((Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 })).0;
     assert_eq!(entity.id, 0);
     assert_eq!(entity.version, 0);
 
@@ -84,8 +84,8 @@ fn test_spawn_entity_with_components() {
 #[test]
 fn test_remove_entity() {
     let mut world = World::new();
-    let entity1 = world.spawn_entity(&(Position { x: 0.0, y: 1.0 })).0;
-    let _entity2 = world.spawn_entity(&(Position { x: 1.0, y: 1.0 })).0;
+    let entity1 = world.spawn_entity(Position { x: 0.0, y: 1.0 }).0;
+    let _entity2 = world.spawn_entity(Position { x: 1.0, y: 1.0 }).0;
 
     assert!(world.remove_entity(entity1).is_ok());
 
@@ -97,7 +97,7 @@ fn test_remove_entity() {
     assert!(iter.next().is_none());
 
     // Spawning a new entity should reuse the ID of entity1
-    let entity3 = world.spawn_entity(&(Health(10))).0;
+    let entity3 = world.spawn_entity(Health(10)).0;
     assert_eq!(entity3.id, entity1.id); // Should reuse id 0
     assert_eq!(entity3.version, entity1.version + 1); // Version should increment
 }
@@ -105,7 +105,7 @@ fn test_remove_entity() {
 #[test]
 fn test_add_component() {
     let mut world = World::new();
-    let entity = world.spawn_entity(&(Position { x: 0.0, y: 0.0 })).0;
+    let entity = world.spawn_entity(Position { x: 0.0, y: 0.0 }).0;
 
     // Initially, no Velocity component
     let query_vel = Query::<&Velocity>::retrieve(&mut world);
@@ -128,7 +128,7 @@ fn test_add_component() {
 #[test]
 fn test_remove_component() {
     let mut world = World::new();
-    let entity = world.spawn_entity(&(Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 })).0;
+    let entity = world.spawn_entity((Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 })).0;
 
     // Initially, entity has both Position and Velocity
     let query_pos_vel = Query::<(&Position, &Velocity)>::retrieve(&mut world);
@@ -152,7 +152,7 @@ fn test_remove_component() {
 #[test]
 fn test_add_remove_sequence() {
     let mut world = World::new();
-    let entity = world.spawn_entity(&(Position { x: 0.0, y: 0.0 })).0;
+    let entity = world.spawn_entity(Position { x: 0.0, y: 0.0 }).0;
 
     // Add Velocity
     world.add_component(entity, Velocity { x: 1.0, y: 1.0 }).unwrap();
@@ -179,9 +179,9 @@ fn test_movement_system() {
     let mut world = World::new();
     world.add_system(movement_system);
 
-    let _entity1 = world.spawn_entity(&(Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 0.5 }));
-    let _entity2 = world.spawn_entity(&(Position { x: 10.0, y: 5.0 }, Velocity { x: -2.0, y: 1.0 }));
-    let _entity3_no_velocity = world.spawn_entity(&(Position { x: 100.0, y: 200.0 })); // Should not move
+    let _entity1 = world.spawn_entity((Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 0.5 }));
+    let _entity2 = world.spawn_entity((Position { x: 10.0, y: 5.0 }, Velocity { x: -2.0, y: 1.0 }));
+    let _entity3_no_velocity = world.spawn_entity(Position { x: 100.0, y: 200.0 }); // Should not move
 
     world.step(); // Run the system
 
@@ -203,9 +203,9 @@ fn test_health_system_with_filter() {
     let mut world = World::new();
     world.add_system(health_system);
 
-    let _entity1 = world.spawn_entity(&(Health(10), Position { x: 0.0, y: 0.0 })); // Has Position, will be processed
-    let _entity2 = world.spawn_entity(&(Health(5))); // No Position, should not be processed
-    let _entity3 = world.spawn_entity(&(Health(1), Position { x: 1.0, y: 1.0 }));
+    let _entity1 = world.spawn_entity((Health(10), Position { x: 0.0, y: 0.0 })); // Has Position, will be processed
+    let _entity2 = world.spawn_entity(Health(5)); // No Position, should not be processed
+    let _entity3 = world.spawn_entity((Health(1), Position { x: 1.0, y: 1.0 }));
 
     world.step(); // Run the system
 
@@ -224,8 +224,8 @@ fn test_name_logger_system_without_filter() {
     let mut world = World::new();
     world.add_system(name_logger_system);
 
-    let _entity1 = world.spawn_entity(&(Name("Alice".to_string()), Position { x: 1.0, y: 2.0 })); // Will be logged
-    let _entity2 = world.spawn_entity(&(Name("Bob".to_string()), Position { x: 3.0, y: 4.0 }, Health(10))); // Has Health, will NOT be logged
+    let _entity1 = world.spawn_entity((Name("Alice".to_string()), Position { x: 1.0, y: 2.0 })); // Will be logged
+    let _entity2 = world.spawn_entity((Name("Bob".to_string()), Position { x: 3.0, y: 4.0 }, Health(10))); // Has Health, will NOT be logged
 
     // The system prints, we can't assert output directly without capturing stdout,
     // but we can ensure it runs without panicking.

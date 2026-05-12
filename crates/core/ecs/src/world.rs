@@ -1,4 +1,4 @@
-use crate::{archetype::{Archetype, ArchetypeEdge, ArchetypeId, ComponentToArchetypeMap, SignatureToArchetypeMap}, component::{Component, get_component_id}, entity::{Entity, EntityId, EntityVersion}, spawnable_tupple::SpawnableTupple, system::{IntoSystem, System}};
+use crate::{archetype::{Archetype, ArchetypeCollumn, ArchetypeId, ComponentToArchetypeMap, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
 
 
 pub struct World {
@@ -61,7 +61,7 @@ impl World {
         self.entity_to_archetype[entity.id] = Some((archetype, entity.id));
     }
 
-    pub fn spawn_entity<T: SpawnableTupple>(&mut self, components: &T) -> (Entity, &mut Self) {
+    pub fn spawn_entity<T: ComponentTupple>(&mut self, components: T) -> (Entity, &mut Self) {
         let entity: Entity;
         if let Some(mut free_entity) = self.free_entity_id.pop(){
             free_entity.version += 1;
@@ -113,33 +113,22 @@ impl World {
         Ok(self)
     }
 
-    pub fn add_component<T:Component>(&mut self, entity: Entity, component:T) -> Result<&mut Self, &'static str>{
+    pub fn add_component<T:ComponentTupple>(&mut self, entity: Entity, component:T) -> Result<&mut Self, &'static str>{
         let record = self.entity_to_archetype[entity.id].as_mut().ok_or("Entity not in entity map")?;
         let current_archetype_id = record.0;
 
         // get the new archetype
-        let mut new_archetype_id_option: Option<ArchetypeId> = None;
-        if let Some(edge) = self.archetypes[current_archetype_id].edges.get(&get_component_id::<T>()) && let ArchetypeEdge::Add(archetype) = edge {
-            new_archetype_id_option = Some(*archetype)
-        }
+        let mut signature = self.archetypes[current_archetype_id].signature.clone();
+        T::add_signature(&mut signature)?;
 
-        if new_archetype_id_option.is_none(){
-            let mut signature = self.archetypes[current_archetype_id].signature.clone();
-            signature.add_sorted(get_component_id::<T>());
-
-            // check if archetype already exist
-            new_archetype_id_option = Some(match self.signature_to_archetype.get(&signature){
-                Some(id) => *id,
-                // if it doesn't, create it
-                None => {
-                    let id = self.create_archetype(Archetype::new_from_archetype_add::<T>(&self.archetypes[current_archetype_id], current_archetype_id));
-                    id
-                }
-            });
-            self.archetypes[current_archetype_id].set_edge_add::<T>(new_archetype_id_option.unwrap());
-        }
-
-        let new_archetype_id = new_archetype_id_option.unwrap();
+        // check if archetype already exist
+        let new_archetype_id = match self.signature_to_archetype.get(&signature){
+            Some(id) => *id,
+            // if it doesn't, create it
+            None => {
+                self.create_archetype(Archetype::new_from_archetype_add::<T>(&self.archetypes[current_archetype_id])?)
+            }
+        };
 
         // copy data to new archetype
         let new_row;
@@ -165,7 +154,7 @@ impl World {
             }
         }
 
-        self.archetypes[new_archetype_id].set_component::<T>(entity.id, component);
+        T::initialize_component(component, entity.id, &mut self.archetypes[new_archetype_id]);
         
         // SAFE: we don't want to call the destructor because we moved the data
         unsafe {
@@ -184,28 +173,17 @@ impl World {
         // get the new archetype
 
         // get the new archetype
-        let mut new_archetype_id_option: Option<ArchetypeId> = None;
-        if let Some(edge) = self.archetypes[current_archetype_id].edges.get(&get_component_id::<T>()) && let ArchetypeEdge::Remove(archetype) = edge {
-            new_archetype_id_option = Some(*archetype)
-        }
+        let mut signature = self.archetypes[current_archetype_id].signature.clone();
+        T::remove_signature(&mut signature)?;
 
-        if new_archetype_id_option.is_none(){
-
-            let mut signature = self.archetypes[current_archetype_id].signature.clone();
-            signature.remove(get_component_id::<T>())?;
-
-            // check if archetype already exist
-            new_archetype_id_option = Some(match self.signature_to_archetype.get(&signature){
-                Some(id) => *id,
-                // if it doesn't, create it
-                None => {
-                    self.create_archetype(Archetype::new_from_archetype_remove::<T>(&self.archetypes[current_archetype_id], current_archetype_id))
-                }
-            });
-            self.archetypes[current_archetype_id].set_edge_add::<T>(new_archetype_id_option.unwrap());
-        }
-
-        let new_archetype_id = new_archetype_id_option.unwrap();
+        // check if archetype already exist
+        let new_archetype_id = match self.signature_to_archetype.get(&signature){
+            Some(id) => *id,
+            // if it doesn't, create it
+            None => {
+                self.create_archetype(Archetype::new_from_archetype_remove::<T>(&self.archetypes[current_archetype_id])?)
+            }
+        };
 
         // copy data to new archetype
         let new_row;
@@ -216,9 +194,12 @@ impl World {
         }
         let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or("Couldn't find entity in current entity -> row map ")?;
 
-        for new_col in 0..self.archetypes[new_row].signature.0.len() {
+        let mut moved_cols: Vec<ArchetypeCollumn> = Vec::with_capacity(self.archetypes[new_row].signature.0.len());
+
+        for new_col in 0..self.archetypes[new_archetype_id].signature.0.len() {
             let component_id = self.archetypes[new_archetype_id].signature.0[new_col];
             let current_col = self.archetypes[current_archetype_id].signature.find_id(component_id).ok_or("Couldn't find col in signature")?;
+            moved_cols.push(current_col);
 
             let size: usize = self.archetypes[new_archetype_id].components[new_col].get_size_of_element();
             let src: *const u8 = self.archetypes[new_archetype_id].components[new_col].get_pointer(new_row);
@@ -231,12 +212,20 @@ impl World {
             }
         }
 
-        let removed_col = self.archetypes[current_archetype_id].signature.find_id(get_component_id::<T>()).ok_or("Couldn't find col in signature")?;
+        let max_current_col = self.archetypes[new_row].signature.0.len();
+
+        let mut col_to_except: Vec<ArchetypeCollumn> = Vec::new();
+        for col in 0..max_current_col{
+            if !moved_cols.contains(&col){
+                col_to_except.push(col);
+            }
+        }
+
         // SAFE: we don't want to call the destructor because we moved the data
         // But we want to call the destructor of the element that hasn't been copied, thus the
         // remove_except_one
         unsafe {
-            self.archetypes[current_archetype_id].soft_remove_except_one(current_row, removed_col);
+            self.archetypes[current_archetype_id].soft_remove_except(current_row, &col_to_except);
         }
 
         self.set_entity_to_archetype_map(entity, new_archetype_id);

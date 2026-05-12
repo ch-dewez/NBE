@@ -1,5 +1,5 @@
 use crate::{
-    component::{Component, ComponentId, get_component_id},
+    component::{Component, ComponentId, ComponentTupple, get_component_id},
     component_storage::ComponentStorageErased,
     entity::EntityId,
 };
@@ -8,18 +8,25 @@ use std::collections::HashMap;
 #[derive(Default, Clone, PartialEq, Eq, Hash)]
 pub struct ArchetypeSignature(pub Vec<ComponentId>); // need to be always sorted
 impl ArchetypeSignature {
-    pub fn add_sorted(&mut self, id: ComponentId) {
-        for i in 0..self.0.len() {
-            if self.0[i] >= id {
-                self.0.insert(i, id);
-                return;
-            }
-        }
-        // no element bigger, so we push
-        self.0.push(id);
+    pub fn add_sorted<T: Component>(&mut self) -> Result<usize, &'static str> {
+        self.add_sorted_id(get_component_id::<T>())
     }
 
-    pub fn remove(&mut self, id: ComponentId) -> Result<(), &'static str> {
+    pub fn add_sorted_id(&mut self, id: ComponentId) -> Result<usize, &'static str> {
+        let pos = match self.0.binary_search(&id) {
+            Ok(_pos) => Err("Id already exist"),
+            // if doesn't exist
+            Err(pos) => Ok(pos),
+        }?;
+        self.0.insert(pos, id);
+        Ok(pos)
+    }
+
+    pub fn remove<T: Component>(&mut self) -> Result<(), &'static str> {
+        self.remove_id(get_component_id::<T>())
+    }
+    
+    pub fn remove_id(&mut self, id: ComponentId) -> Result<(), &'static str> {
         self.0.remove(
             self.0
                 .iter()
@@ -39,11 +46,11 @@ impl ArchetypeSignature {
 
     pub fn find<T: Component>(&self) -> Option<ArchetypeCollumn> {
         let id: ComponentId = get_component_id::<T>();
-        self.0.iter().position(|x| *x == id)
+        self.find_id(id)
     }
 
     pub fn find_id(&self, id: ComponentId) -> Option<ArchetypeCollumn> {
-        self.0.iter().position(|x| *x == id)
+        self.0.binary_search(&id).ok()
     }
 }
 
@@ -57,8 +64,6 @@ pub struct Archetype {
 
     pub(crate) next_row: ArchetypeRow, // each row = entity
     pub(crate) entity_to_row: Vec<Option<ArchetypeRow>>,
-
-    pub(crate) edges: HashMap<ComponentId, ArchetypeEdge>,
 }
 
 impl Archetype {
@@ -68,67 +73,52 @@ impl Archetype {
             components: Default::default(),
             next_row: 0,
             entity_to_row: Default::default(),
-            edges: Default::default(),
         }
     }
 
-    pub fn new_from_archetype_add<T: Component>(
+    pub fn new_from_archetype_add<T: ComponentTupple>(
         archetype: &Archetype,
-        archetype_id: ArchetypeId,
-    ) -> Self {
-        let mut signature = archetype.signature.clone();
-        signature.add_sorted(get_component_id::<T>());
-
+    ) -> Result<Self, &'static str> {
         let mut components: Vec<Box<dyn ComponentStorageErased>> = Default::default();
 
         for component_storage in &archetype.components {
             components.push(component_storage.new_vec_of_same_type());
         }
-        let new_component_storage: Vec<T> = Vec::new();
-        components.push(Box::new(new_component_storage));
 
-        let mut edges: HashMap<ComponentId, ArchetypeEdge> = Default::default();
-        edges.insert(get_component_id::<T>(), ArchetypeEdge::Remove(archetype_id));
+        let mut signature = archetype.signature.clone();
+        T::add_component_storage(&mut signature, &mut components)?;
 
-        Archetype {
+        Ok(Archetype {
             signature,
             components,
 
             next_row: 0,
             entity_to_row: vec![],
-
-            edges,
-        }
+        })
     }
 
-    pub fn new_from_archetype_remove<T: Component>(
+    pub fn new_from_archetype_remove<T: ComponentTupple>(
         archetype: &Archetype,
-        archetype_id: ArchetypeId,
-    ) -> Self {
+    ) -> Result<Self, &'static str> {
         let mut signature = archetype.signature.clone();
-        let _ = signature.remove(get_component_id::<T>());
+        T::remove_signature(&mut signature)?;
 
         let mut components: Vec<Box<dyn ComponentStorageErased>> = Default::default();
 
         for (i, component_storage) in archetype.components.iter().enumerate() {
-            if archetype.signature.0[i] == get_component_id::<T>() {
+            if T::component_id_match_any_component(archetype.signature.0[i]) {
                 continue;
             }
             components.push(component_storage.new_vec_of_same_type());
         }
 
-        let mut edges: HashMap<ComponentId, ArchetypeEdge> = Default::default();
-        edges.insert(get_component_id::<T>(), ArchetypeEdge::Add(archetype_id));
-
-        Archetype {
+        Ok(Archetype {
             signature,
             components,
 
             next_row: 0,
             entity_to_row: vec![],
-
-            edges,
-        }
+        })
     }
 
     /// The row are unintialized
@@ -172,20 +162,9 @@ impl Archetype {
     }
 
     pub fn remove_row(&mut self, row: ArchetypeRow) {
-        // move last row to the row, change entity record
-
-        let max_row = self.next_row - 1;
-
         // special case, it's the last row
-        if row == max_row {
-            for component_storage in &mut self.components {
-                component_storage.remove_last_row();
-            }
-        } else {
-            for component_storage in &mut self.components {
-                component_storage.copy_element_override(max_row, row);
-                component_storage.remove_last_row();
-            }
+        for component_storage in &mut self.components {
+            component_storage.swap_remove_erased(row);
         }
         // substract last row
         self.next_row -= 1;
@@ -193,22 +172,10 @@ impl Archetype {
 
     /// doesn't call the destructor
     pub unsafe fn soft_remove(&mut self, row: ArchetypeRow) {
-        // move last row to the row, change entity record
-        let max_row = self.next_row - 1;
-
         // special case, it's the last row
-        if row == max_row {
-            for component_storage in &mut self.components {
-                unsafe {
-                    component_storage.soft_remove_last_row();
-                }
-            }
-        } else {
-            for component_storage in &mut self.components {
-                component_storage.copy_element_override(max_row, row);
-                unsafe {
-                    component_storage.soft_remove_last_row();
-                }
+        for component_storage in &mut self.components {
+            unsafe {
+                component_storage.soft_swap_remove_erased(row);
             }
         }
         // substract last row
@@ -216,35 +183,18 @@ impl Archetype {
     }
 
     /// doesn't call the destructor except for one collumn where it does call it
-    pub unsafe fn soft_remove_except_one(
+    pub unsafe fn soft_remove_except(
         &mut self,
         row: ArchetypeRow,
-        except_col: ArchetypeCollumn,
+        except_col: &[ArchetypeCollumn],
     ) {
-        // move last row to the row, change entity record
-        let max_row = self.next_row - 1;
-
-        // special case, it's the last row
-        if row == max_row {
-            for (i, component_storage) in self.components.iter_mut().enumerate() {
-                if i == except_col {
-                    component_storage.remove_last_row();
-                    continue;
-                }
-                unsafe {
-                    component_storage.soft_remove_last_row();
-                }
+        for (i, component_storage) in self.components.iter_mut().enumerate() {
+            if except_col.contains(&i) {
+                component_storage.swap_remove_erased(row);
+                continue;
             }
-        } else {
-            for (i, component_storage) in self.components.iter_mut().enumerate() {
-                if i == except_col {
-                    component_storage.remove_last_row();
-                    continue;
-                }
-                component_storage.copy_element_override(max_row, row);
-                unsafe {
-                    component_storage.soft_remove_last_row();
-                }
+            unsafe {
+                component_storage.soft_swap_remove_erased(row);
             }
         }
         // substract last row
@@ -310,31 +260,6 @@ impl Archetype {
     pub fn get_row_count(&self) -> ArchetypeRow {
         self.next_row
     }
-
-    pub fn set_edge_add<T: Component>(&mut self, archetype_id: ArchetypeId) {
-        match self.edges.get_mut(&get_component_id::<T>()) {
-            Some(_edge) => {}
-            None => {
-                self.edges
-                    .insert(get_component_id::<T>(), ArchetypeEdge::Add(archetype_id));
-            }
-        };
-    }
-
-    pub fn set_edge_remove<T: Component>(&mut self, archetype_id: ArchetypeId) {
-        match self.edges.get_mut(&get_component_id::<T>()) {
-            Some(_edge) => {}
-            None => {
-                self.edges
-                    .insert(get_component_id::<T>(), ArchetypeEdge::Remove(archetype_id));
-            }
-        };
-    }
-}
-
-pub enum ArchetypeEdge {
-    Add(ArchetypeId),
-    Remove(ArchetypeId),
 }
 
 pub type ComponentToArchetypeMap = HashMap<ComponentId, Vec<ArchetypeId>>;

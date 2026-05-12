@@ -4,8 +4,6 @@ mod util_macro;
 mod archetype;
 mod component_storage;
 
-mod spawnable_tupple;
-
 #[cfg(test)]
 mod test;
 

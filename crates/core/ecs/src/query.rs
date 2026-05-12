@@ -51,15 +51,15 @@ impl<'a, T: QueryData, F: QueryFilter> Iterator for QueryIter<'a, T, F> {
         if self.query.archetypes.len() <= self.archetype_index {
             return None;
         }
-        let row_count = self.query.archetypes[self.archetype_index].get_row_count();
-        if self.row_index >= row_count {
+        let mut row_count: usize;
+        loop {
+            row_count = self.query.archetypes[self.archetype_index].get_row_count();
+            if self.row_index < row_count {
+                break;
+            }
             self.row_index = 0;
             self.archetype_index += 1;
             if self.query.archetypes.len() <= self.archetype_index {
-                return None;
-            }
-            let row_count = self.query.archetypes[self.archetype_index].get_row_count();
-            if self.row_index >= row_count {
                 return None;
             }
         }
@@ -112,6 +112,7 @@ macro_rules! impl_query_tupple {
                 let archetype_ptr = archetype as * mut Archetype;
 
                 // TODO: Maybe there's a way to remove this unsafe
+                #[allow(clippy::needless_question_mark)]
                 unsafe {
                     Ok((
                     $(

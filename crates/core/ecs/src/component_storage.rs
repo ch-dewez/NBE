@@ -7,10 +7,9 @@ pub trait ComponentStorageErased: Any {
 
     fn get_component_id(&self) -> ComponentId;
 
-    fn copy_element_override(&mut self, from: usize, to:usize);
-    fn remove_last_row(&mut self);
+    fn swap_remove_erased(&mut self, index: usize);
     /// doesn't call the destructor
-    unsafe fn soft_remove_last_row(&mut self);
+    unsafe fn soft_swap_remove_erased(&mut self, index: usize);
 
     /// push raw bytes 
     /// This will leave uninitialized/corrupt memory
@@ -36,16 +35,16 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
         get_component_id::<T>()
     }
 
-    fn copy_element_override(&mut self, from: usize, to:usize){
-        self[to] = self[from].clone();
+    fn swap_remove_erased(&mut self, index: usize){
+        self.swap_remove(index);
     }
 
-    fn remove_last_row(&mut self) {
-        let _ = self.pop();
-    }
-    unsafe fn soft_remove_last_row(&mut self){
-        let value = self.pop();
-        std::mem::forget(value);
+    unsafe fn soft_swap_remove_erased(&mut self, index: usize){
+        let last_index = self.len()-1;
+        self.swap(index, last_index);
+        unsafe{
+            self.set_len(self.len()-1);
+        }
     }
 
     unsafe fn push_uninitialized(&mut self){
@@ -58,7 +57,7 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
     }
 
     fn get_size_of_element(&self) -> usize {
-        return size_of::<T>()
+        size_of::<T>()
     }
 
     fn get_pointer(&self, index: usize) -> *const u8 {
