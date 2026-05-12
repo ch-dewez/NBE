@@ -1,6 +1,7 @@
 use std::any::TypeId;
+
 use crate::{
-    archetype::{Archetype, ArchetypeSignature},
+    archetype::{AccessComponentError, AddSignatureError, Archetype, ArchetypeSignature, RemoveSignatureError},
     component_storage::ComponentStorageErased,
     entity::EntityId,
 };
@@ -17,15 +18,15 @@ pub fn get_component_id<T: Component>() -> ComponentId {
 //fn somethign (somethi: Archetype, entity: EntityId);
 pub trait ComponentTupple {
     fn get_signature() -> ArchetypeSignature;
-    fn add_signature(signature: &mut ArchetypeSignature) -> Result<Vec<usize>, &'static str>;
+    fn add_signature(signature: &mut ArchetypeSignature) -> Result<Vec<usize>, AddSignatureError>;
     /// remove the comp id in the signature
-    fn remove_signature(signature: &mut ArchetypeSignature) -> Result<(), &'static str>;
+    fn remove_signature(signature: &mut ArchetypeSignature) -> Result<(), RemoveSignatureError>;
 
-    fn initialize_component(self, entity: EntityId, archetype: &mut Archetype);
+    fn initialize_component(self, entity: EntityId, archetype: &mut Archetype) -> Result<(), AccessComponentError>;
     fn create_archetype() -> Archetype;
 
     /// add empty component storage to the container
-    fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<dyn ComponentStorageErased>>)->Result<(), &'static str>;
+    fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<dyn ComponentStorageErased>>)->Result<(), AddSignatureError>;
 
     fn component_id_match_any_component(id: ComponentId) -> bool;
 }
@@ -45,7 +46,7 @@ macro_rules! impl_component_tupple {
             }
 
             #[allow(unused_variables)]
-            fn add_signature(signature: &mut ArchetypeSignature) -> Result<Vec<usize>, &'static str>{
+            fn add_signature(signature: &mut ArchetypeSignature) -> Result<Vec<usize>, AddSignatureError>{
                 Ok(vec![
                     $(
                         signature.add_sorted_id(get_component_id::<$params>())?
@@ -55,7 +56,7 @@ macro_rules! impl_component_tupple {
 
             #[allow(unused_mut)]
             #[allow(unused_variables)]
-            fn remove_signature(signature: &mut ArchetypeSignature) -> Result<(), &'static str> {
+            fn remove_signature(signature: &mut ArchetypeSignature) -> Result<(), RemoveSignatureError> {
                 $(
                     let _ = signature.remove::<$params>()?;
                 )*
@@ -63,11 +64,14 @@ macro_rules! impl_component_tupple {
             }
 
             #[allow(unused_variables)]
-            fn initialize_component(self, entity: EntityId, archetype: &mut Archetype){
+            fn initialize_component(self, entity: EntityId, archetype: &mut Archetype)-> Result<(), AccessComponentError>
+            {
                 let ($($params),*) = self;
                 $(
-                    archetype.set_component::<$params>(entity, $params);
+                    archetype.set_component::<$params>(entity, $params)?;
                 )*
+
+                Ok(())
             }
 
             fn create_archetype()-> Archetype{
@@ -89,7 +93,7 @@ macro_rules! impl_component_tupple {
 
             #[allow(unused_mut)]
             #[allow(unused_variables)]
-            fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<dyn ComponentStorageErased>>) -> Result<(), &'static str>{
+            fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<dyn ComponentStorageErased>>) -> Result<(), AddSignatureError>{
                 let mut index: usize;
                 $(
                     index = signature.add_sorted::<$params>()?;

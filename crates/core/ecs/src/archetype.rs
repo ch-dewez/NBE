@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 use crate::{
     component::{Component, ComponentId, ComponentTupple, get_component_id},
     component_storage::ComponentStorageErased,
@@ -7,14 +9,23 @@ use std::collections::HashMap;
 
 #[derive(Default, Clone, PartialEq, Eq, Hash)]
 pub struct ArchetypeSignature(pub Vec<ComponentId>); // need to be always sorted
+
+#[derive(Error, Debug)]
+#[error("The Component is already present in the signature/archetype/entity.")]
+pub struct AddSignatureError;
+
+#[derive(Error, Debug)]
+#[error("Try to remove a component which is not present in the signature/archetype/entity.")]
+pub struct RemoveSignatureError;
+
 impl ArchetypeSignature {
-    pub fn add_sorted<T: Component>(&mut self) -> Result<usize, &'static str> {
+    pub fn add_sorted<T: Component>(&mut self) -> Result<usize, AddSignatureError> {
         self.add_sorted_id(get_component_id::<T>())
     }
 
-    pub fn add_sorted_id(&mut self, id: ComponentId) -> Result<usize, &'static str> {
+    pub fn add_sorted_id(&mut self, id: ComponentId) -> Result<usize, AddSignatureError> {
         let pos = match self.0.binary_search(&id) {
-            Ok(_pos) => Err("Id already exist"),
+            Ok(_pos) => Err(AddSignatureError),
             // if doesn't exist
             Err(pos) => Ok(pos),
         }?;
@@ -22,16 +33,16 @@ impl ArchetypeSignature {
         Ok(pos)
     }
 
-    pub fn remove<T: Component>(&mut self) -> Result<(), &'static str> {
+    pub fn remove<T: Component>(&mut self) -> Result<(), RemoveSignatureError> {
         self.remove_id(get_component_id::<T>())
     }
     
-    pub fn remove_id(&mut self, id: ComponentId) -> Result<(), &'static str> {
+    pub fn remove_id(&mut self, id: ComponentId) -> Result<(), RemoveSignatureError> {
         self.0.remove(
             self.0
                 .iter()
                 .position(|x| *x == id)
-                .ok_or("Couldn't find id in signature")?,
+                .ok_or(RemoveSignatureError)?,
         );
         Ok(())
     }
@@ -66,6 +77,16 @@ pub struct Archetype {
     pub(crate) entity_to_row: Vec<Option<ArchetypeRow>>,
 }
 
+#[derive(Error, Debug)]
+pub enum AccessComponentError {
+    #[error("Trying to get a component from an entity that is not present in the archetype")]
+    EntityNotFound,
+    #[error("Trying to get a component that is not present in the archetype/entity")]
+    ComponentNotInArchetype,
+    #[error("Should not happen, meaning that the signature don't represent the data")]
+    SignatureTypeUnsynced 
+} 
+
 impl Archetype {
     pub fn new_blanck() -> Self {
         Archetype {
@@ -78,7 +99,7 @@ impl Archetype {
 
     pub fn new_from_archetype_add<T: ComponentTupple>(
         archetype: &Archetype,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, AddSignatureError> {
         let mut components: Vec<Box<dyn ComponentStorageErased>> = Default::default();
 
         for component_storage in &archetype.components {
@@ -99,7 +120,7 @@ impl Archetype {
 
     pub fn new_from_archetype_remove<T: ComponentTupple>(
         archetype: &Archetype,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, RemoveSignatureError> {
         let mut signature = archetype.signature.clone();
         T::remove_signature(&mut signature)?;
 
@@ -201,60 +222,60 @@ impl Archetype {
         self.next_row -= 1;
     }
 
-    pub fn get_component<T: Component>(&mut self, entity: EntityId) -> Result<&T, &'static str> {
+    pub fn get_component<T: Component>(&mut self, entity: EntityId) -> Result<&T, AccessComponentError> {
         match self.get_row(entity) {
             Some(row) => self.get_component_row::<T>(row),
-            None => Err("Entity Not Found"),
+            None => Err(AccessComponentError::EntityNotFound),
         }
     }
     pub fn get_component_row<T: Component>(
         &mut self,
         row: ArchetypeRow,
-    ) -> Result<&T, &'static str> {
+    ) -> Result<&T, AccessComponentError> {
         let col = self
             .signature
             .find::<T>()
-            .ok_or("Didn't find component in archetype")?;
+            .ok_or(AccessComponentError::EntityNotFound)?;
         Ok(&(self.components[col]
             .as_any_ref()
             .downcast_ref::<Vec<T>>()
-            .ok_or("Col not equal T, Should not happen")?)[row])
+            .ok_or(AccessComponentError::SignatureTypeUnsynced)?)[row])
     }
 
     pub fn get_component_mut<T: Component>(
         &mut self,
         entity: EntityId,
-    ) -> Result<&mut T, &'static str> {
+    ) -> Result<&mut T, AccessComponentError> {
         match self.get_row(entity) {
             Some(row) => self.get_component_row_mut::<T>(row),
-            None => Err("Entity Not Found"),
+            None => Err(AccessComponentError::EntityNotFound),
         }
     }
     pub fn get_component_row_mut<T: Component>(
         &mut self,
         row: ArchetypeRow,
-    ) -> Result<&mut T, &'static str> {
+    ) -> Result<&mut T, AccessComponentError> {
         let col = self
             .signature
             .find::<T>()
-            .ok_or("Didn't find component in archetype")?;
+            .ok_or(AccessComponentError::ComponentNotInArchetype)?;
         Ok(&mut (self.components[col]
             .as_any_mut()
             .downcast_mut::<Vec<T>>()
-            .ok_or("Col not equal T, Should not happen")?)[row])
+            .ok_or(AccessComponentError::SignatureTypeUnsynced)?)[row])
     }
 
-    pub fn set_component<T: Component>(&mut self, entity: EntityId, component: T) {
-        //TODO: add error handling
+    pub fn set_component<T: Component>(&mut self, entity: EntityId, component: T) -> Result<(), AccessComponentError> {
         let col = self
             .signature
             .find::<T>()
-            .expect("Didn't find component in archetype");
-        let row = self.entity_to_row[entity].expect("didn't find entity");
+            .ok_or(AccessComponentError::ComponentNotInArchetype)?;
+        let row = self.entity_to_row[entity].ok_or(AccessComponentError::EntityNotFound)?;
         self.components[col]
             .as_any_mut()
             .downcast_mut::<Vec<T>>()
-            .expect("Col was not of type T, should not happen")[row] = component;
+            .ok_or(AccessComponentError::SignatureTypeUnsynced)?[row] = component;
+        Ok(())
     }
 
     pub fn get_row_count(&self) -> ArchetypeRow {

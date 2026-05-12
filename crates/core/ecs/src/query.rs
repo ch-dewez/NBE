@@ -1,5 +1,5 @@
 use crate::{
-    archetype::{Archetype, ArchetypeRow},
+    archetype::{Archetype, ArchetypeRow, AccessComponentError},
     component::Component,
     system::SystemParam,
     world::World,
@@ -91,7 +91,7 @@ pub trait QueryData {
     fn retrieve<'w>(
         archetype: &'w mut Archetype,
         row: ArchetypeRow,
-    ) -> Result<Self::Item<'w>, &'static str>;
+    ) -> Result<Self::Item<'w>, AccessComponentError>;
 }
 macro_rules! impl_query_tupple {
     ($( $params:ident ),*) => {
@@ -107,8 +107,7 @@ macro_rules! impl_query_tupple {
                 )*
             }
 
-        //fn retrieve(archetype: &'a mut Archetype, row: ArchetypeRow) -> Result<Self, &'static str>{
-        fn retrieve<'w>(archetype: &'w mut Archetype, row: ArchetypeRow) -> Result<Self::Item<'w>, &'static str>{
+        fn retrieve<'w>(archetype: &'w mut Archetype, row: ArchetypeRow) -> Result<Self::Item<'w>, AccessComponentError>{
                 let archetype_ptr = archetype as * mut Archetype;
 
                 // TODO: Maybe there's a way to remove this unsafe
@@ -153,7 +152,7 @@ pub trait QueryArgument {
     fn retrieve<'w>(
         archetype: &'w mut Archetype,
         row: ArchetypeRow,
-    ) -> Result<Self::Item<'w>, &'static str>;
+    ) -> Result<Self::Item<'w>, AccessComponentError>;
 }
 impl<T: Component> QueryArgument for &T {
     type Item<'w> = &'w T;
@@ -164,7 +163,7 @@ impl<T: Component> QueryArgument for &T {
     fn retrieve<'w>(
         archetype: &'w mut Archetype,
         row: ArchetypeRow,
-    ) -> Result<Self::Item<'w>, &'static str> {
+    ) -> Result<Self::Item<'w>, AccessComponentError> {
         //let archetype_ref = unsafe{};
         archetype.get_component_row::<T>(row)
     }
@@ -179,7 +178,7 @@ impl<T: Component> QueryArgument for &mut T {
     fn retrieve<'w>(
         archetype: &'w mut Archetype,
         row: ArchetypeRow,
-    ) -> Result<Self::Item<'w>, &'static str> {
+    ) -> Result<Self::Item<'w>, AccessComponentError> {
         //let archetype_ref = unsafe{};
         archetype.get_component_row_mut::<T>(row)
     }

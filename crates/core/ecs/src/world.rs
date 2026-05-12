@@ -1,4 +1,6 @@
-use crate::{archetype::{Archetype, ArchetypeCollumn, ArchetypeId, ComponentToArchetypeMap, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
+use thiserror::Error;
+
+use crate::{archetype::{AddSignatureError, Archetype, ArchetypeCollumn, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
 
 
 pub struct World {
@@ -15,6 +17,42 @@ pub struct World {
 
     systems: Vec<Box<dyn System>>
 }
+
+
+#[derive(Error, Debug)]
+pub enum GetArchetypeFromEntityError{
+    #[error("Trying to get an entity id that is not present")]
+    EntityIdNotFound,
+    #[error("Trying to get an entity that doesn't have the right version")]
+    EntityVersionMismatch 
+}
+
+#[derive(Error, Debug)]
+pub enum AddComponentError {
+    #[error("The entity was not found in the world")]
+    GetEntity(#[from] GetArchetypeFromEntityError),
+    #[error("Trying to add component to an entity that already has it.")]
+    AlreadyExistingComponent(#[from] AddSignatureError),
+    #[error("Should not happen, the archetype does not have the entity in its map, the map or the world is unsynced")]
+    ArchetypeEntityNotFound,
+    #[error("Should not happen, the archetype does not have the component in its map, the map or the world is unsynced")]
+    ComponentCollumnNotFound,
+}
+
+#[derive(Error, Debug)]
+pub enum RemoveComponentError {
+    #[error("The entity was not found in the world")]
+    GetEntity(#[from] GetArchetypeFromEntityError),
+    #[error("Trying to remove component to an entity that doesn't have it.")]
+    NotExistingComponent(#[from] RemoveSignatureError),
+    #[error("Should not happen, the archetype does not have the entity in its map, the map or the world is unsynced")]
+    ArchetypeEntityNotFound,
+    #[error("Should not happen, the archetype does not have the component in its map, the map or the world is unsynced")]
+    ComponentCollumnNotFound,
+}
+
+
+pub type RemoveEntityError = GetArchetypeFromEntityError;
 
 impl World {
     pub fn new() -> Self {
@@ -58,7 +96,20 @@ impl World {
         if self.entity_to_archetype.len() <= entity.id{
             self.entity_to_archetype.resize(entity.id+1, None);
         }
-        self.entity_to_archetype[entity.id] = Some((archetype, entity.id));
+        self.entity_to_archetype[entity.id] = Some((archetype, entity.version));
+    }
+
+    fn get_archetype_from_entity(&self, entity: Entity) -> Result<ArchetypeId, GetArchetypeFromEntityError>{
+        if self.entity_to_archetype.len() <= entity.id{
+            return Err(GetArchetypeFromEntityError::EntityIdNotFound);
+        }
+        let value = self.entity_to_archetype[entity.id]
+            .ok_or(GetArchetypeFromEntityError::EntityIdNotFound)?;
+        if value.1 != entity.version{
+            return Err(GetArchetypeFromEntityError::EntityVersionMismatch); 
+        }
+
+        Ok(value.0)
     }
 
     pub fn spawn_entity<T: ComponentTupple>(&mut self, components: T) -> (Entity, &mut Self) {
@@ -82,7 +133,8 @@ impl World {
         unsafe {
             self.archetypes[archetype_id].add_entity(entity.id);
         }
-        components.initialize_component(entity.id, &mut self.archetypes[archetype_id]);
+        // SAFETY: Can't panic, we just created the entity, we know that it exists and is in the right row and everything
+        components.initialize_component(entity.id, &mut self.archetypes[archetype_id]).unwrap();
 
         self.set_entity_to_archetype_map(entity, archetype_id);
         self.next_entity_id += 1;
@@ -102,20 +154,27 @@ impl World {
     //     entity
     // }
 
-    pub fn remove_entity(&mut self, entity: Entity) -> Result<&mut World, &'static str> {
-        // TODO: Add error handling here
-        self.free_entity_id.push(entity);
-        let archtype_id = self.entity_to_archetype[entity.id].take().ok_or("No entity in map")?;
-        if archtype_id.1 == entity.version{
-            self.archetypes[archtype_id.0].remove_entity(entity.id);
+    pub fn remove_entity(&mut self, entity: Entity) -> Result<&mut World, RemoveEntityError> {
+        if self.entity_to_archetype.len() <= entity.id{
+            return Err(RemoveEntityError::EntityIdNotFound);
         }
+        let value = self.entity_to_archetype[entity.id]
+            .take()
+            .ok_or(RemoveEntityError::EntityIdNotFound)?;
+        if value.1 != entity.version{
+            return Err(RemoveEntityError::EntityVersionMismatch); 
+        }
+
+        let archtype_id = value.0;
+        self.archetypes[archtype_id].remove_entity(entity.id);
+
+        self.free_entity_id.push(entity);
 
         Ok(self)
     }
 
-    pub fn add_component<T:ComponentTupple>(&mut self, entity: Entity, component:T) -> Result<&mut Self, &'static str>{
-        let record = self.entity_to_archetype[entity.id].as_mut().ok_or("Entity not in entity map")?;
-        let current_archetype_id = record.0;
+    pub fn add_component<T:ComponentTupple>(&mut self, entity: Entity, component:T) -> Result<&mut Self, AddComponentError>{
+        let current_archetype_id = self.get_archetype_from_entity(entity)?;
 
         // get the new archetype
         let mut signature = self.archetypes[current_archetype_id].signature.clone();
@@ -137,11 +196,11 @@ impl World {
         unsafe {
             new_row = self.archetypes[new_archetype_id].add_entity(entity.id);
         }
-        let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or("Couldn't find entity in current entity -> row map ")?;
+        let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or(AddComponentError::ArchetypeEntityNotFound)?;
 
         for current_col in 0..self.archetypes[current_archetype_id].signature.0.len() {
             let component_id = self.archetypes[current_archetype_id].signature.0[current_col];
-            let new_col = self.archetypes[new_archetype_id].signature.find_id(component_id).ok_or("Couldn't find col in signature")?;
+            let new_col = self.archetypes[new_archetype_id].signature.find_id(component_id).ok_or(AddComponentError::ComponentCollumnNotFound)?;
 
             let size: usize = self.archetypes[current_archetype_id].components[current_col].get_size_of_element();
             let src: *const u8 = self.archetypes[current_archetype_id].components[current_col].get_pointer(current_row);
@@ -154,7 +213,7 @@ impl World {
             }
         }
 
-        T::initialize_component(component, entity.id, &mut self.archetypes[new_archetype_id]);
+        T::initialize_component(component, entity.id, &mut self.archetypes[new_archetype_id]).ok().ok_or(AddComponentError::ArchetypeEntityNotFound)?;
         
         // SAFE: we don't want to call the destructor because we moved the data
         unsafe {
@@ -166,10 +225,8 @@ impl World {
         Ok(self)
     }
 
-    pub fn remove_component<T:Component>(&mut self, entity: Entity) -> Result<&mut World, &'static str>{
-        let record = self.entity_to_archetype[entity.id].as_mut().ok_or("Entity not in entity map")?;
-        let current_archetype_id = record.0;
-
+    pub fn remove_component<T:Component>(&mut self, entity: Entity) -> Result<&mut World, RemoveComponentError>{
+        let current_archetype_id = self.get_archetype_from_entity(entity)?;
         // get the new archetype
 
         // get the new archetype
@@ -192,13 +249,13 @@ impl World {
         unsafe {
             new_row = self.archetypes[new_archetype_id].add_entity(entity.id);
         }
-        let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or("Couldn't find entity in current entity -> row map ")?;
+        let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or(RemoveComponentError::ArchetypeEntityNotFound)?;
 
         let mut moved_cols: Vec<ArchetypeCollumn> = Vec::with_capacity(self.archetypes[new_row].signature.0.len());
 
         for new_col in 0..self.archetypes[new_archetype_id].signature.0.len() {
             let component_id = self.archetypes[new_archetype_id].signature.0[new_col];
-            let current_col = self.archetypes[current_archetype_id].signature.find_id(component_id).ok_or("Couldn't find col in signature")?;
+            let current_col = self.archetypes[current_archetype_id].signature.find_id(component_id).ok_or(RemoveComponentError::ComponentCollumnNotFound)?;
             moved_cols.push(current_col);
 
             let size: usize = self.archetypes[new_archetype_id].components[new_col].get_size_of_element();
