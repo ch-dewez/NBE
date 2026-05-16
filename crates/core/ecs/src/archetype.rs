@@ -74,7 +74,8 @@ pub struct Archetype {
     pub(crate) components: Vec<Box<dyn ComponentStorageErased>>, // each collumns = a component
 
     pub(crate) next_row: ArchetypeRow, // each row = entity
-    pub(crate) entity_to_row: Vec<Option<ArchetypeRow>>,
+    pub(crate) entity_to_row: HashMap<EntityId, ArchetypeRow>,
+    pub(crate) row_to_entity: Vec<EntityId>,
 }
 
 #[derive(Error, Debug)]
@@ -94,6 +95,7 @@ impl Archetype {
             components: Default::default(),
             next_row: 0,
             entity_to_row: Default::default(),
+            row_to_entity: Default::default(),
         }
     }
 
@@ -114,7 +116,8 @@ impl Archetype {
             components,
 
             next_row: 0,
-            entity_to_row: vec![],
+            entity_to_row: Default::default(),
+            row_to_entity: Default::default()
         })
     }
 
@@ -138,7 +141,8 @@ impl Archetype {
             components,
 
             next_row: 0,
-            entity_to_row: vec![],
+            entity_to_row: Default::default(),
+            row_to_entity: Default::default()
         })
     }
 
@@ -146,12 +150,12 @@ impl Archetype {
     /// you NEED to initialize the components just after this.
     /// if the signature is [], there's no need because there's no component
     pub unsafe fn add_entity(&mut self, entity: EntityId) -> ArchetypeRow {
-        if self.entity_to_row.len() <= entity {
-            self.entity_to_row.resize(entity + 1, None);
-        }
-
         let row = self.next_row;
-        self.entity_to_row[entity] = Some(row);
+        self.entity_to_row
+            .insert(entity, row);
+
+        self.row_to_entity.push(row);
+
         self.next_row += 1;
 
         // SAFETY: intented uninitialized memory, it needs to be initialized after, left to the
@@ -173,7 +177,22 @@ impl Archetype {
     }
 
     pub fn get_row(&self, entity: EntityId) -> Option<ArchetypeRow> {
-        self.entity_to_row[entity]
+        self.entity_to_row.get(&entity).cloned()
+    }
+
+    pub fn get_entity(&self, row: ArchetypeRow) -> Option<EntityId> {
+        self.row_to_entity.get(row).cloned()
+    }
+
+    pub fn removed_entity_map_update(&mut self, row: usize){
+        let entity = self.row_to_entity[self.next_row - 1];
+        self.entity_to_row.insert(entity, row);
+
+        let new_entity = self.row_to_entity[row];
+        self.entity_to_row.remove(&new_entity);
+
+        self.row_to_entity[row] = entity;
+        let _ = self.row_to_entity.pop();
     }
 
     pub fn remove_entity(&mut self, entity: EntityId) {
@@ -187,6 +206,9 @@ impl Archetype {
         for component_storage in &mut self.components {
             component_storage.swap_remove_erased(row);
         }
+
+        self.removed_entity_map_update(row);
+
         // substract last row
         self.next_row -= 1;
     }
@@ -199,11 +221,14 @@ impl Archetype {
                 component_storage.soft_swap_remove_erased(row);
             }
         }
+
+        self.removed_entity_map_update(row);
+
         // substract last row
         self.next_row -= 1;
     }
 
-    /// doesn't call the destructor except for one collumn where it does call it
+    /// doesn't call the destructor except for excepted collumns where it does call it
     pub unsafe fn soft_remove_except(
         &mut self,
         row: ArchetypeRow,
@@ -218,6 +243,9 @@ impl Archetype {
                 component_storage.soft_swap_remove_erased(row);
             }
         }
+
+        self.removed_entity_map_update(row);
+
         // substract last row
         self.next_row -= 1;
     }
@@ -270,7 +298,7 @@ impl Archetype {
             .signature
             .find::<T>()
             .ok_or(AccessComponentError::ComponentNotInArchetype)?;
-        let row = self.entity_to_row[entity].ok_or(AccessComponentError::EntityNotFound)?;
+        let row = self.entity_to_row.get(&entity).cloned().ok_or(AccessComponentError::EntityNotFound)?;
         self.components[col]
             .as_any_mut()
             .downcast_mut::<Vec<T>>()

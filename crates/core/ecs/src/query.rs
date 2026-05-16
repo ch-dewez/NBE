@@ -1,8 +1,5 @@
 use crate::{
-    archetype::{Archetype, ArchetypeRow, AccessComponentError},
-    component::Component,
-    system::SystemParam,
-    world::World,
+    archetype::{AccessComponentError, Archetype, ArchetypeRow}, component::Component, entity::EntityId, system::SystemParam, world::World
 };
 use std::marker::PhantomData;
 
@@ -164,7 +161,6 @@ impl<T: Component> QueryArgument for &T {
         archetype: &'w mut Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError> {
-        //let archetype_ref = unsafe{};
         archetype.get_component_row::<T>(row)
     }
 }
@@ -179,8 +175,20 @@ impl<T: Component> QueryArgument for &mut T {
         archetype: &'w mut Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError> {
-        //let archetype_ref = unsafe{};
         archetype.get_component_row_mut::<T>(row)
+    }
+}
+
+pub struct Entity;
+impl QueryArgument for Entity{
+    type Item<'w> = EntityId;
+    fn filter(_archetypes: &mut Vec<&mut Archetype>) {}
+
+    fn retrieve<'w>(
+        archetype: &'w mut Archetype,
+        row: ArchetypeRow,
+    ) -> Result<Self::Item<'w>, AccessComponentError> {
+        Ok(archetype.get_entity(row).expect("Row out of bounds in system iteration"))
     }
 }
 

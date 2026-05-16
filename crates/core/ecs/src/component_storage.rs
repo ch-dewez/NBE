@@ -48,12 +48,19 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
     }
 
     unsafe fn push_uninitialized(&mut self){
-        let raw_bytes = vec![0;self.get_size_of_element()];
-        let element: T = unsafe {
-            std::ptr::read_unaligned(raw_bytes.as_ptr() as *const T)
-        };
-        
-        self.push(element);
+        if self.capacity() > self.len() {
+            // Safety: the objective of this function is to be able to access via an index, the
+            // underlying data should be set directly after calling this function, so it's safe
+            unsafe {
+                self.set_len(self.len() + 1);
+            }
+        }else {
+            let element: T = unsafe {
+                std::mem::MaybeUninit::zeroed().assume_init()
+            };
+
+            self.push(element);
+        }
     }
 
     fn get_size_of_element(&self) -> usize {

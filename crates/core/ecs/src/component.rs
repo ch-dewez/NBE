@@ -88,6 +88,7 @@ macro_rules! impl_component_tupple {
 
                     next_row: 0,
                     entity_to_row: Default::default(),
+                    row_to_entity: Default::default()
                 }
             }
 
