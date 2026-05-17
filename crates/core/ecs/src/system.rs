@@ -24,16 +24,14 @@
 //
 
 
-use std::marker::PhantomData;
-
 use crate::{world::World};
-
 
 
 pub type StoredSystem = Box<dyn System>;
 
-pub trait System {
+pub trait System{
     fn run(&mut self, world: &World);
+    fn cache(&mut self, world: &World);
 }
 
 pub trait IntoSystem<Input> {
@@ -57,7 +55,7 @@ macro_rules! impl_into_system {
             fn into_system(self) -> Self::System {
                 FunctionSystem {
                     f: self,
-                    marker: Default::default()
+                    cache: None
                 }
             }
         }
@@ -69,11 +67,11 @@ macro_rules! impl_system  {
     ($($params:ident),*) => {
         #[allow(non_snake_case)]
         #[allow(unused)]
-        impl<F: FnMut($($params),*), $($params: SystemParam + 'static),*> System for FunctionSystem<($($params),*), F> 
+    impl<F: FnMut($($params),*), $($params: SystemParam + 'static),*> System for FunctionSystem<($($params),*), F> 
         where
             for<'a, 'b> &'a mut F:
                 FnMut($($params),*) +
-                FnMut($(<$params as SystemParam>::Item<'b>),*)
+                FnMut($(<$params as SystemParam>::Item<'b>),*),
         {
 
             fn run(&mut self, world: &World) {
@@ -84,11 +82,26 @@ macro_rules! impl_system  {
                 ) {
                     f($($params),*)
                 }
-                $(
-                    let $params = $params::retrieve(world);
-                )*
 
-                call_inner(&mut self.f, $($params),*);
+                if let Some(cache) = &self.cache.as_ref(){
+                    let ($($params),*) = cache;
+                    $(
+                        let $params = $params::from_cache($params, world);
+                    )*
+                    call_inner(&mut self.f, $($params),*);
+                }else {
+                    $(
+                        let $params = $params::retrieve(world);
+                    )*
+                    call_inner(&mut self.f, $($params),*);
+                }
+            }
+
+            fn cache(&mut self, world: &World)
+            {
+                self.cache = Some(
+                    ($($params::cache(world)),*)
+                );
             }
         }
     };
@@ -97,14 +110,35 @@ macro_rules! impl_system  {
 repeat_macro_with_argument!(impl_system, 32);
 repeat_macro_with_argument!(impl_into_system, 32);
 
-pub struct FunctionSystem<Input, F> {
+pub trait SystemParamTupple {
+    type Item<'w>;
+    type Cache;
+}
+
+macro_rules! impl_system_param_tupple {
+    ($($params:ident),*) => {
+        #[allow(non_snake_case)]
+        #[allow(unused)]
+        impl<$($params: SystemParam),*> SystemParamTupple for ($($params),*){
+            type Item<'w> = ($($params::Item<'w>),*);
+            type Cache = ($($params::Cache),*);
+        }
+    };
+}
+repeat_macro_with_argument!(impl_system_param_tupple, 32);
+
+
+pub struct FunctionSystem<Input: SystemParamTupple, F> {
     f: F,
-    marker: PhantomData<fn() -> Input>
+    cache: Option<Input::Cache>
 }
 
 
 pub trait SystemParam{
     type Item<'w>;
+    type Cache;
     fn retrieve<'w>(world: &'w World) -> Self::Item<'w>;
+    fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Self::Item<'w>;
+    fn cache(world: &World) -> Self::Cache;
 }
 

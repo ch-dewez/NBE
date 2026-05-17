@@ -1,5 +1,5 @@
 use crate::{
-    archetype::{AccessComponentError, Archetype, ArchetypeRow}, component::Component, entity::Entity, system::SystemParam, world::World
+    archetype::{AccessComponentError, Archetype, ArchetypeId, ArchetypeRow}, component::Component, entity::Entity, system::SystemParam, world::World
 };
 use std::{cell::{Ref, RefMut}, marker::PhantomData};
 
@@ -8,8 +8,14 @@ pub struct Query<'a, T: QueryData, F: QueryFilter = ()> {
     _phantom_data: PhantomData<(T, F)>,
 }
 
+pub struct QueryCache{
+    pub archetypes: Vec<ArchetypeId>
+}
+
 impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
     type Item<'w> = Query<'w, T, F>;
+    type Cache = QueryCache;
+
     fn retrieve<'w>(world: &'w World) -> Self::Item<'w> {
         let mut archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
 
@@ -20,6 +26,31 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
             archetypes,
             _phantom_data: Default::default(),
         }
+    }
+
+    fn cache(world: &World) -> Self::Cache {
+        let mut archetypes : Vec<ArchetypeId> = (0..world.archetypes.len()).collect();
+
+        T::filter_id(&mut archetypes, world);
+        F::filter_id(&mut archetypes, world);
+
+        QueryCache{
+            archetypes
+        }
+    }
+
+    fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Self::Item<'w> {
+        let archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
+        Query {
+            archetypes: cache.archetypes.iter().map(|id| archetypes[*id]).collect(),
+            _phantom_data: Default::default(),
+        }
+    }
+}
+
+impl<'a, T: QueryData, F: QueryFilter> Clone for Query<'a, T, F> {
+    fn clone(&self) -> Self {
+        Self { archetypes: self.archetypes.clone(), _phantom_data: Default::default() }
     }
 }
 
@@ -81,6 +112,7 @@ pub trait QueryData {
     type Item<'a>;
 
     fn filter(archetypes: &mut Vec<&Archetype>);
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World);
     fn retrieve<'w>(
         archetype: &'w Archetype,
         row: ArchetypeRow,
@@ -97,6 +129,11 @@ macro_rules! impl_query_tupple {
             fn filter(archetypes: &mut Vec<&Archetype>){
                 $(
                     $params::filter(archetypes);
+                )*
+            }
+            fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World){
+                $(
+                    $params::filter_id(archetypes, world);
                 )*
             }
 
@@ -116,6 +153,7 @@ repeat_macro_with_argument_without_0!(impl_query_tupple, 32);
 
 pub trait QueryFilter {
     fn filter(archetypes: &mut Vec<&Archetype>);
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World);
 }
 macro_rules! impl_query_tupple {
     ($( $params:ident ),*) => {
@@ -128,6 +166,12 @@ macro_rules! impl_query_tupple {
                     $params::filter(archetypes);
                 )*
             }
+
+            fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World){
+                $(
+                    $params::filter_id(archetypes, world);
+                )*
+            }
         }
     };
 }
@@ -138,6 +182,7 @@ pub trait QueryArgument {
     type Item<'w>;
 
     fn filter(archetypes: &mut Vec<& Archetype>);
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World);
     fn retrieve<'w>(
         archetype: &'w Archetype,
         row: ArchetypeRow,
@@ -148,6 +193,9 @@ impl<T: Component> QueryArgument for &T {
 
     fn filter(archetypes: &mut Vec<& Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
+    }
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
+        archetypes.retain(|id| world.archetypes[*id].signature.contains::<T>());
     }
     fn retrieve<'w>(
         archetype: &'w Archetype,
@@ -162,6 +210,9 @@ impl<T: Component> QueryArgument for &mut T {
     fn filter(archetypes: &mut Vec<& Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
     }
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
+        archetypes.retain(|id| world.archetypes[*id].signature.contains::<T>());
+    }
 
     fn retrieve<'w>(
         archetype: &'w Archetype,
@@ -175,6 +226,7 @@ pub struct EntityArgument;
 impl QueryArgument for EntityArgument{
     type Item<'w> = Entity;
     fn filter(_archetypes: &mut Vec<&Archetype>) {}
+    fn filter_id(_archetypes: &mut Vec<ArchetypeId>, _world: &World) {}
 
     fn retrieve<'w>(
         archetype: &'w Archetype,
@@ -186,6 +238,7 @@ impl QueryArgument for EntityArgument{
 
 pub trait QueryFilterArgument {
     fn filter(archetypes: &mut Vec<&Archetype>);
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World);
 }
 pub struct With<T: Component> {
     _phantom_data: PhantomData<T>,
@@ -194,6 +247,9 @@ impl<T: Component> QueryFilterArgument for With<T> {
     fn filter(archetypes: &mut Vec<&Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
     }
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
+        archetypes.retain(|id| world.archetypes[*id].signature.contains::<T>());
+    }
 }
 pub struct Without<T: Component> {
     _phantom_data: PhantomData<T>,
@@ -201,5 +257,8 @@ pub struct Without<T: Component> {
 impl<T: Component> QueryFilterArgument for Without<T> {
     fn filter(archetypes: &mut Vec<&Archetype>) {
         archetypes.retain(|x| !x.signature.contains::<T>());
+    }
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
+        archetypes.retain(|id| world.archetypes[*id].signature.contains::<T>());
     }
 }

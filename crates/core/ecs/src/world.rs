@@ -1,12 +1,12 @@
-use std::ops::Deref;
+use std::{cell::RefCell, ops::Deref};
 
 use thiserror::Error;
 
 use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
 
 
-pub struct World {
-    archetypes: Vec<Archetype>, // index 0 will be the one with no component
+pub struct World<'w> {
+    pub(crate) archetypes: Vec<Archetype>, // index 0 will be the one with no component
 
     next_entity_id: EntityId,
     // important to re-use entity to avoid gaps in data
@@ -17,7 +17,8 @@ pub struct World {
     component_to_archetype: ComponentToArchetypeMap,
     signature_to_archetype: SignatureToArchetypeMap,
 
-    systems: Vec<Box<dyn System>>
+    system_cache_invalidated: bool,
+    systems: Vec<Box<RefCell<dyn System + 'w>>>
 }
 
 
@@ -56,7 +57,7 @@ pub enum RemoveComponentError {
 
 pub type RemoveEntityError = GetArchetypeFromEntityError;
 
-impl World {
+impl<'w> World<'w> {
     pub fn new() -> Self {
         let mut world: World = World{
             archetypes: vec![],
@@ -65,7 +66,8 @@ impl World {
             entity_to_archetype: Default::default(),
             component_to_archetype: Default::default(),
             signature_to_archetype: Default::default(),
-            systems: Default::default()
+            systems: Default::default(),
+            system_cache_invalidated: false
         };
 
         world.create_archetype(Archetype::new_blanck());
@@ -74,6 +76,8 @@ impl World {
     }
 
     fn create_archetype(&mut self, archetype:Archetype) -> ArchetypeId{
+        self.system_cache_invalidated = true;
+
         let index: ArchetypeId = self.archetypes.len();
 
         for component_id in &archetype.signature.0 {
@@ -139,7 +143,7 @@ impl World {
         (entity, self)
     }
 
-    pub fn remove_entity(&mut self, entity: Entity) -> Result<&mut World, RemoveEntityError> {
+    pub fn remove_entity(&mut self, entity: Entity) -> Result<&mut Self, RemoveEntityError> {
         if self.entity_to_archetype.len() <= entity.id{
             return Err(RemoveEntityError::EntityIdNotFound);
         }
@@ -219,7 +223,7 @@ impl World {
         Ok(self)
     }
 
-    pub fn remove_component<T:Component>(&mut self, entity: Entity) -> Result<&mut World, RemoveComponentError>{
+    pub fn remove_component<T:Component>(&'_ mut self, entity: Entity) -> Result<&'_ mut Self, RemoveComponentError>{
         let current_archetype_id = self.get_archetype_from_entity(entity)?;
         // get the new archetype
 
@@ -288,22 +292,25 @@ impl World {
         Ok(self)
     }
 
-    pub fn add_system<T, S: System + 'static>(&mut self, system: impl IntoSystem<T, System = S> + 'static) -> &mut Self{
-        self.systems.push(Box::new(system.into_system()));
+    pub fn add_system<T, S: System + 'w>(&mut self, system: impl IntoSystem<T, System = S>) -> &mut Self{
+        self.systems.push(Box::new(RefCell::new(system.into_system())));
         self
     }
 
     pub fn step(&mut self) {
-        // SAFETY: System won't access other systems
-        unsafe {
-            for system in &mut *(&mut self.systems as *mut Vec<Box<dyn System>>){
-                system.run(self);
+        if self.system_cache_invalidated{
+            for system in &self.systems{
+                system.borrow_mut().cache(self);
             }
+        }
+        for system in &self.systems{
+
+            system.borrow_mut().run(self);
         }
     }
 }
 
-impl Default for World{
+impl<'w> Default for World<'w>{
     fn default() -> Self {
         World::new()
     }
