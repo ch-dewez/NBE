@@ -149,7 +149,7 @@ impl Archetype {
     /// The row are unintialized
     /// you NEED to initialize the components just after this.
     /// if the signature is [], there's no need because there's no component
-    pub unsafe fn add_entity(&mut self, entity: EntityId) -> ArchetypeRow {
+    pub fn add_entity<T: ComponentTupple>(&mut self, entity: EntityId, component_tupple: T) -> ArchetypeRow {
         let row = self.next_row;
         self.entity_to_row
             .insert(entity, row);
@@ -158,23 +158,27 @@ impl Archetype {
 
         self.next_row += 1;
 
-        // SAFETY: intented uninitialized memory, it needs to be initialized after, left to the
-        // caller: push raw bytes
-        unsafe {
-            self.push_uninitialized_row();
-        }
+        component_tupple.initialize_component(entity, self);
 
         row
     }
 
-    unsafe fn push_uninitialized_row(&mut self) {
-        for component_storage in &mut self.components {
-            // SAFETY: intented uninitialized memory: push raw bytes
-            unsafe {
-                component_storage.push_uninitialized();
-            }
-        }
+    /// update entity_to_row, row_to_entity and next_row but does not increase the size of the
+    /// component vectors
+    /// self.components[0][row] will panic.
+    /// After calling this function, the caller needs to manually increase the size
+    pub unsafe fn add_entity_no_push(&mut self, entity: EntityId) -> ArchetypeRow {
+        let row = self.next_row;
+        self.entity_to_row
+            .insert(entity, row);
+
+        self.row_to_entity.push(row);
+
+        self.next_row += 1;
+
+        row
     }
+
 
     pub fn get_row(&self, entity: EntityId) -> Option<ArchetypeRow> {
         self.entity_to_row.get(&entity).cloned()
@@ -184,15 +188,37 @@ impl Archetype {
         self.row_to_entity.get(row).cloned()
     }
 
-    pub fn removed_entity_map_update(&mut self, row: usize){
-        let entity = self.row_to_entity[self.next_row - 1];
-        self.entity_to_row.insert(entity, row);
+    fn removed_entity_map_update_from_row(&mut self, row: usize){
+        let last_entity = self.row_to_entity[self.next_row - 1];
+        self.entity_to_row.insert(last_entity, row);
 
         let new_entity = self.row_to_entity[row];
         self.entity_to_row.remove(&new_entity);
 
-        self.row_to_entity[row] = entity;
+        self.row_to_entity[row] = last_entity;
         let _ = self.row_to_entity.pop();
+    }
+
+    /// remove the entity from the maps, if the entity does not exist, it does nothing
+    fn removed_entity_map_update_from_entity(&mut self, entity: EntityId){
+        let current_row = self.entity_to_row.get(&entity);
+        if current_row.is_none(){
+            return;
+        }
+        let current_row = *current_row.unwrap();
+
+        let last_entity = self.row_to_entity[self.next_row - 1];
+
+        self.entity_to_row.insert(last_entity, current_row);
+        self.entity_to_row.remove(&entity);
+
+        self.row_to_entity[current_row] = last_entity;
+        let _ = self.row_to_entity.pop();
+    }
+
+    pub unsafe fn remove_entity_no_storage_update(&mut self, entity: EntityId){
+        self.removed_entity_map_update_from_entity(entity);
+        self.next_row -= 1;
     }
 
     pub fn remove_entity(&mut self, entity: EntityId) {
@@ -207,7 +233,7 @@ impl Archetype {
             component_storage.swap_remove_erased(row);
         }
 
-        self.removed_entity_map_update(row);
+        self.removed_entity_map_update_from_row(row);
 
         // substract last row
         self.next_row -= 1;
@@ -222,7 +248,7 @@ impl Archetype {
             }
         }
 
-        self.removed_entity_map_update(row);
+        self.removed_entity_map_update_from_row(row);
 
         // substract last row
         self.next_row -= 1;
@@ -244,7 +270,7 @@ impl Archetype {
             }
         }
 
-        self.removed_entity_map_update(row);
+        self.removed_entity_map_update_from_row(row);
 
         // substract last row
         self.next_row -= 1;
@@ -293,16 +319,23 @@ impl Archetype {
             .ok_or(AccessComponentError::SignatureTypeUnsynced)?)[row])
     }
 
+    /// set the component
+    /// if the row == len, it pushes
     pub fn set_component<T: Component>(&mut self, entity: EntityId, component: T) -> Result<(), AccessComponentError> {
         let col = self
             .signature
             .find::<T>()
             .ok_or(AccessComponentError::ComponentNotInArchetype)?;
         let row = self.entity_to_row.get(&entity).cloned().ok_or(AccessComponentError::EntityNotFound)?;
-        self.components[col]
+        let component_storage = self.components[col]
             .as_any_mut()
             .downcast_mut::<Vec<T>>()
-            .ok_or(AccessComponentError::SignatureTypeUnsynced)?[row] = component;
+            .ok_or(AccessComponentError::SignatureTypeUnsynced)?;
+        if component_storage.len() == row {
+            component_storage.push(component);
+        } else {
+            component_storage[row] = component;
+        }
         Ok(())
     }
 

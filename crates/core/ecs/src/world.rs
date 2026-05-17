@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{archetype::{AddSignatureError, Archetype, ArchetypeCollumn, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
+use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, component_storage::ComponentStorageErased, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
 
 
 pub struct World {
@@ -129,12 +129,7 @@ impl World {
             archetype_id = self.create_archetype(T::create_archetype());
         }
 
-        // SAFETY: components initialized just after
-        unsafe {
-            self.archetypes[archetype_id].add_entity(entity.id);
-        }
-        // SAFETY: Can't panic, we just created the entity, we know that it exists and is in the right row and everything
-        components.initialize_component(entity.id, &mut self.archetypes[archetype_id]).unwrap();
+        self.archetypes[archetype_id].add_entity(entity.id, components);
 
         self.set_entity_to_archetype_map(entity, archetype_id);
         self.next_entity_id += 1;
@@ -181,8 +176,7 @@ impl World {
         T::add_signature(&mut signature)?;
 
         // check if archetype already exist
-        let new_archetype_id = match self.signature_to_archetype.get(&signature){
-            Some(id) => *id,
+        let new_archetype_id = match self.signature_to_archetype.get(&signature){ Some(id) => *id,
             // if it doesn't, create it
             None => {
                 self.create_archetype(Archetype::new_from_archetype_add::<T>(&self.archetypes[current_archetype_id])?)
@@ -191,10 +185,11 @@ impl World {
 
         // copy data to new archetype
         let new_row;
-        // SAFETY: This will left uninitialized memory that will be filled with the memcpy just
-        // after
+        // SAFETY: The component storage won't be filled with a new row, but this is fine
+        // because copy_element_from_another_storage take this case into account
         unsafe {
-            new_row = self.archetypes[new_archetype_id].add_entity(entity.id);
+            new_row = self.archetypes[new_archetype_id].add_entity_no_push(entity.id);
+            debug_assert!(new_row == self.archetypes[new_archetype_id].next_row - 1, "new entity row is not the last row, in add component");
         }
         let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or(AddComponentError::ArchetypeEntityNotFound)?;
 
@@ -202,24 +197,41 @@ impl World {
             let component_id = self.archetypes[current_archetype_id].signature.0[current_col];
             let new_col = self.archetypes[new_archetype_id].signature.find_id(component_id).ok_or(AddComponentError::ComponentCollumnNotFound)?;
 
-            let size: usize = self.archetypes[current_archetype_id].components[current_col].get_size_of_element();
-            let src: *const u8 = self.archetypes[current_archetype_id].components[current_col].get_pointer(current_row);
-            let dst: *mut u8 = self.archetypes[new_archetype_id].components[new_col].get_pointer_mut(new_row);
+            // SAFETY: I can't safely borrow this storage while borrowing the dst storage as mut.
+            // But it's safe because those are different element of a vec
+            let other_storage_ptr =self.archetypes[current_archetype_id]
+                            .components[current_col]
+                            .as_ref() as *const dyn ComponentStorageErased;
 
-            // SAFETY the dst is already allocated when we called add_entity
+            self.archetypes[new_archetype_id]
+                .components[new_col]
+                .copy_element_from_another_storage(
+                    current_row, 
+                    new_row,
+
+                    unsafe {
+                        & * other_storage_ptr
+                    }
+                );
+
+            // SAFETY: We don't want to call the destructor because we copied the data
             unsafe {
-                // pointer of u8 so size = count
-                std::ptr::copy_nonoverlapping(src, dst, size);
+                self
+                    .archetypes[current_archetype_id]
+                    .components[current_col]
+                    .soft_swap_remove_erased(current_row);
             }
         }
 
         T::initialize_component(component, entity.id, &mut self.archetypes[new_archetype_id]).ok().ok_or(AddComponentError::ArchetypeEntityNotFound)?;
-        
-        // SAFE: we don't want to call the destructor because we moved the data
-        unsafe {
-            self.archetypes[current_archetype_id].soft_remove(current_row);
-        }
 
+        // SAFETY: We don't want to update the comopnent as it has already been done in the loop
+        // above
+        unsafe {
+            self.archetypes[current_archetype_id]
+                .remove_entity_no_storage_update(entity.id);
+        }
+        
         self.set_entity_to_archetype_map(entity, new_archetype_id);
 
         Ok(self)
@@ -243,46 +255,59 @@ impl World {
         };
 
         // copy data to new archetype
+
         let new_row;
-        // SAFETY: This will left uninitialized memory that will be filled with the memcpy just
-        // after
+        // SAFETY: The component storage won't be filled with a new row, but this is fine
+        // because copy_element_from_another_storage take this case into account
         unsafe {
-            new_row = self.archetypes[new_archetype_id].add_entity(entity.id);
+            new_row = self.archetypes[new_archetype_id].add_entity_no_push(entity.id);
         }
         let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or(RemoveComponentError::ArchetypeEntityNotFound)?;
 
-        let mut moved_cols: Vec<ArchetypeCollumn> = Vec::with_capacity(self.archetypes[new_row].signature.0.len());
+        for current_col in 0..self.archetypes[current_archetype_id].signature.0.len() {
+            let component_id = self.archetypes[current_archetype_id].signature.0[current_col];
+            let new_col = self.archetypes[new_archetype_id].signature.find_id(component_id);
 
-        for new_col in 0..self.archetypes[new_archetype_id].signature.0.len() {
-            let component_id = self.archetypes[new_archetype_id].signature.0[new_col];
-            let current_col = self.archetypes[current_archetype_id].signature.find_id(component_id).ok_or(RemoveComponentError::ComponentCollumnNotFound)?;
-            moved_cols.push(current_col);
+            // a component that nees to be removed
+            if new_col.is_none(){
+                self.archetypes[current_archetype_id]
+                    .components[current_col]
+                    .swap_remove_erased(current_row);
+                continue;
+            }
 
-            let size: usize = self.archetypes[new_archetype_id].components[new_col].get_size_of_element();
-            let src: *const u8 = self.archetypes[new_archetype_id].components[new_col].get_pointer(new_row);
-            let dst: *mut u8 = self.archetypes[current_archetype_id].components[current_col].get_pointer_mut(current_row);
+            let new_col = new_col.unwrap();
 
-            // SAFETY the dst is already allocated when we called add_entity
+            // SAFETY: I can't safely borrow this storage while borrowing the dst storage as mut.
+            // But it's safe because those are different element of a vec
+            let other_storage_ptr =self.archetypes[current_archetype_id]
+                            .components[current_col]
+                            .as_ref() as *const dyn ComponentStorageErased;
+
+            self.archetypes[new_archetype_id]
+                .components[new_col]
+                .copy_element_from_another_storage(
+                    current_row, 
+                    new_row,
+
+                    unsafe {
+                        & * other_storage_ptr
+                    }
+                );
+
+            // SAFETY: We don't want to call the destructor because we copied the data
             unsafe {
-                // pointer of u8 so size = count
-                std::ptr::copy_nonoverlapping(src, dst, size);
+                self
+                    .archetypes[current_archetype_id]
+                    .components[current_col]
+                    .soft_swap_remove_erased(current_row);
             }
         }
 
-        let max_current_col = self.archetypes[new_row].signature.0.len();
-
-        let mut col_to_except: Vec<ArchetypeCollumn> = Vec::new();
-        for col in 0..max_current_col{
-            if !moved_cols.contains(&col){
-                col_to_except.push(col);
-            }
-        }
-
-        // SAFE: we don't want to call the destructor because we moved the data
-        // But we want to call the destructor of the element that hasn't been copied, thus the
-        // remove_except_one
+        // SAFETY: We don't want to update the comopnent as it has already been done in the loop
+        // above
         unsafe {
-            self.archetypes[current_archetype_id].soft_remove_except(current_row, &col_to_except);
+            self.archetypes[current_archetype_id].remove_entity_no_storage_update(entity.id);
         }
 
         self.set_entity_to_archetype_map(entity, new_archetype_id);

@@ -6,7 +6,7 @@ use crate::{
     entity::EntityId,
 };
 
-pub trait Component: 'static  {}
+pub trait Component: 'static {}
 pub type ComponentId = TypeId;
 
 pub fn get_component_id<T: Component>() -> ComponentId {
@@ -14,8 +14,6 @@ pub fn get_component_id<T: Component>() -> ComponentId {
 }
 
 
-
-//fn somethign (somethi: Archetype, entity: EntityId);
 pub trait ComponentTupple {
     fn get_signature() -> ArchetypeSignature;
     fn add_signature(signature: &mut ArchetypeSignature) -> Result<Vec<usize>, AddSignatureError>;

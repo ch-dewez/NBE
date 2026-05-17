@@ -1,5 +1,5 @@
-use std::any::Any;
-use crate::component::{Component, ComponentId, get_component_id};
+use std::any::{Any, TypeId};
+use crate::{archetype::ArchetypeRow, component::{Component, ComponentId, get_component_id}};
 
 pub trait ComponentStorageErased: Any {
     fn as_any_ref(&self) -> & dyn Any;
@@ -11,16 +11,13 @@ pub trait ComponentStorageErased: Any {
     /// doesn't call the destructor
     unsafe fn soft_swap_remove_erased(&mut self, index: usize);
 
-    /// push raw bytes 
-    /// This will leave uninitialized/corrupt memory
-    /// use case: have an index, just to be initialized just after
-    unsafe fn push_uninitialized(&mut self);
-
     fn get_size_of_element(&self) -> usize;
     fn get_pointer(&self, index: usize) -> *const u8;
     fn get_pointer_mut(&mut self, index: usize) -> *mut u8;
 
     fn new_vec_of_same_type(&self) -> Box<dyn ComponentStorageErased>;
+
+    fn copy_element_from_another_storage(&mut self, source_row: ArchetypeRow, dst_row: ArchetypeRow, other: &dyn ComponentStorageErased);
 }
 
 impl<T: Component> ComponentStorageErased for Vec<T>{
@@ -47,22 +44,6 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
         }
     }
 
-    unsafe fn push_uninitialized(&mut self){
-        if self.capacity() > self.len() {
-            // Safety: the objective of this function is to be able to access via an index, the
-            // underlying data should be set directly after calling this function, so it's safe
-            unsafe {
-                self.set_len(self.len() + 1);
-            }
-        }else {
-            let element: T = unsafe {
-                std::mem::MaybeUninit::zeroed().assume_init()
-            };
-
-            self.push(element);
-        }
-    }
-
     fn get_size_of_element(&self) -> usize {
         size_of::<T>()
     }
@@ -77,6 +58,39 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
     fn new_vec_of_same_type(&self) -> Box<dyn ComponentStorageErased>{
         let vec_of_type: Vec<T> = Vec::new();
         Box::new(vec_of_type)
+    }
+
+    /// memcpy to dst_row,
+    /// if dst_row == len -> first reserve and set_len, then memcpy
+    fn copy_element_from_another_storage(&mut self, source_row: ArchetypeRow, dst_row: ArchetypeRow, other: & dyn ComponentStorageErased){
+        let size: usize = self.get_size_of_element();
+        let src: *const u8 = other.get_pointer(source_row);
+        let dst;
+
+        if dst_row < self.len(){
+            dst = self.get_pointer_mut(dst_row);
+        }else if dst_row == self.len(){
+            if self.capacity() < self.len() + 1 {
+                self.reserve(1);
+            }
+            // SAFETY: We have the capacity and the element will be initiliazed in the
+            // following copy_non_overlaping
+            unsafe {
+                self.set_len(self.len() + 1);
+            }
+            dst = self.get_pointer_mut(dst_row);
+        }else {
+            panic!("Trying to copy data to this component storage but dst row is out of bounds (and not next row)");
+        }
+
+        debug_assert_eq!(other.type_id(), TypeId::of::<Vec<T>>());
+
+        // SAFETY: dst is allocated, the size has been calculated, we asserted that the type are
+        // the same 
+        unsafe {
+            // pointer of u8 so size = count
+            std::ptr::copy_nonoverlapping(src, dst, size);
+        }
     }
 }
 
