@@ -15,8 +15,8 @@
 //         }
 //     }
 // }
-// //repeat_macro_with_argument!(impl_into_system, 16);
-// repeat_macro_with_argument_without_0!(impl_into_system, 16);
+// //repeat_macro_with_argument!(impl_into_system, 32);
+// repeat_macro_with_argument_without_0!(impl_into_system, 32);
 //
 // pub trait SystemParam<'a>{
 //     fn retrieve(world: &'a mut World) -> Self;
@@ -94,8 +94,8 @@ macro_rules! impl_system  {
     };
 }
 
-repeat_macro_with_argument!(impl_system, 16);
-repeat_macro_with_argument!(impl_into_system, 16);
+repeat_macro_with_argument!(impl_system, 32);
+repeat_macro_with_argument!(impl_into_system, 32);
 
 pub struct FunctionSystem<Input, F> {
     f: F,
