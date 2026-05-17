@@ -116,4 +116,4 @@ macro_rules! impl_component_tupple {
     };
 }
 
-repeat_macro_with_argument!(impl_component_tupple, 16);
+repeat_macro_with_argument!(impl_component_tupple, 32);

@@ -121,10 +121,10 @@ macro_rules! impl_query_tupple {
         }
     };
 }
-repeat_macro_with_argument_without_0!(impl_query_tupple, 16);
+repeat_macro_with_argument_without_0!(impl_query_tupple, 32);
 
 pub trait QueryFilter {
-    fn filter(archetypes: &mut Vec<&mut Archetype>);
+    fn filter(archetypes: &mut Vec<&Archetype>);
 }
 macro_rules! impl_query_tupple {
     ($( $params:ident ),*) => {
@@ -132,7 +132,7 @@ macro_rules! impl_query_tupple {
         #[allow(unused_variables)]
         impl<$($params:QueryFilterArgument),*> QueryFilter for ($($params),*)
         {
-            fn filter(archetypes: &mut Vec<&mut Archetype>){
+            fn filter(archetypes: &mut Vec<&Archetype>){
                 $(
                     $params::filter(archetypes);
                 )*
@@ -140,7 +140,8 @@ macro_rules! impl_query_tupple {
         }
     };
 }
-repeat_macro_with_argument!(impl_query_tupple, 16);
+repeat_macro_with_argument!(impl_query_tupple, 32);
+
 
 pub trait QueryArgument {
     type Item<'w>;

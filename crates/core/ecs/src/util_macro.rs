@@ -63,6 +63,70 @@ macro_rules! repeat_macro_with_argument_without_0 {
         $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P);
         repeat_macro_with_argument_without_0!($macro, 15);
     };
+    ( $macro:ident, 17 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q);
+        repeat_macro_with_argument_without_0!($macro, 16);
+    };
+    ( $macro:ident, 18 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R);
+        repeat_macro_with_argument_without_0!($macro, 17);
+    };
+    ( $macro:ident, 19 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S);
+        repeat_macro_with_argument_without_0!($macro, 18);
+    };
+    ( $macro:ident, 20 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T);
+        repeat_macro_with_argument_without_0!($macro, 19);
+    };
+    ( $macro:ident, 21 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U);
+        repeat_macro_with_argument_without_0!($macro, 20);
+    };
+    ( $macro:ident, 22 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V);
+        repeat_macro_with_argument_without_0!($macro, 21);
+    };
+    ( $macro:ident, 23 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W);
+        repeat_macro_with_argument_without_0!($macro, 22);
+    };
+    ( $macro:ident, 24 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X);
+        repeat_macro_with_argument_without_0!($macro, 23);
+    };
+    ( $macro:ident, 25 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y);
+        repeat_macro_with_argument_without_0!($macro, 24);
+    };
+    ( $macro:ident, 26 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z);
+        repeat_macro_with_argument_without_0!($macro, 25);
+    };
+    ( $macro:ident, 27 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA);
+        repeat_macro_with_argument_without_0!($macro, 26);
+    };
+    ( $macro:ident, 28 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB);
+        repeat_macro_with_argument_without_0!($macro, 27);
+    };
+    ( $macro:ident, 29 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB, AC);
+        repeat_macro_with_argument_without_0!($macro, 28);
+    };
+    ( $macro:ident, 30 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB, AC, AD);
+        repeat_macro_with_argument_without_0!($macro, 29);
+    };
+    ( $macro:ident, 31 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB, AC, AD, AE);
+        repeat_macro_with_argument_without_0!($macro, 30);
+    };
+    ( $macro:ident, 32 ) => {
+        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB, AC, AD, AE, AF);
+        repeat_macro_with_argument_without_0!($macro, 31);
+    };
 }
 
 macro_rules! repeat_macro_with_argument {
