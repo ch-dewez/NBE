@@ -3,7 +3,7 @@ use thiserror::Error;
 use crate::{
     component::{Component, ComponentId, ComponentTupple, get_component_id},
     component_storage::ComponentStorageErased,
-    entity::EntityId,
+    entity::{Entity}
 };
 use std::{cell::{self, Ref, RefCell, RefMut}, collections::HashMap};
 
@@ -74,8 +74,8 @@ pub struct Archetype {
     pub(crate) components: Vec<Box<RefCell<dyn ComponentStorageErased>>>, // each collumns = a component
 
     pub(crate) next_row: ArchetypeRow, // each row = entity
-    pub(crate) entity_to_row: HashMap<EntityId, ArchetypeRow>,
-    pub(crate) row_to_entity: Vec<EntityId>,
+    pub(crate) entity_to_row: HashMap<Entity, ArchetypeRow>,
+    pub(crate) row_to_entity: Vec<Entity>,
 }
 
 #[derive(Error, Debug)]
@@ -155,7 +155,7 @@ impl Archetype {
     /// The row are unintialized
     /// you NEED to initialize the components just after this.
     /// if the signature is [], there's no need because there's no component
-    pub fn add_entity<T: ComponentTupple>(&mut self, entity: EntityId, component_tupple: T) -> ArchetypeRow {
+    pub fn add_entity<T: ComponentTupple>(&mut self, entity: Entity, component_tupple: T) -> ArchetypeRow {
         let row = self.next_row;
         self.entity_to_row
             .insert(entity, row);
@@ -173,7 +173,7 @@ impl Archetype {
     /// component vectors
     /// self.components[0][row] will panic.
     /// After calling this function, the caller needs to manually increase the size
-    pub unsafe fn add_entity_no_push(&mut self, entity: EntityId) -> ArchetypeRow {
+    pub unsafe fn add_entity_no_push(&mut self, entity: Entity) -> ArchetypeRow {
         let row = self.next_row;
         self.entity_to_row
             .insert(entity, row);
@@ -186,11 +186,11 @@ impl Archetype {
     }
 
 
-    pub fn get_row(&self, entity: EntityId) -> Option<ArchetypeRow> {
+    pub fn get_row(&self, entity: Entity) -> Option<ArchetypeRow> {
         self.entity_to_row.get(&entity).cloned()
     }
 
-    pub fn get_entity(&self, row: ArchetypeRow) -> Option<EntityId> {
+    pub fn get_entity(&self, row: ArchetypeRow) -> Option<Entity> {
         self.row_to_entity.get(row).cloned()
     }
 
@@ -206,7 +206,7 @@ impl Archetype {
     }
 
     /// remove the entity from the maps, if the entity does not exist, it does nothing
-    fn removed_entity_map_update_from_entity(&mut self, entity: EntityId){
+    fn removed_entity_map_update_from_entity(&mut self, entity: Entity){
         let current_row = self.entity_to_row.get(&entity);
         if current_row.is_none(){
             return;
@@ -222,12 +222,12 @@ impl Archetype {
         let _ = self.row_to_entity.pop();
     }
 
-    pub unsafe fn remove_entity_no_storage_update(&mut self, entity: EntityId){
+    pub unsafe fn remove_entity_no_storage_update(&mut self, entity: Entity){
         self.removed_entity_map_update_from_entity(entity);
         self.next_row -= 1;
     }
 
-    pub fn remove_entity(&mut self, entity: EntityId) {
+    pub fn remove_entity(&mut self, entity: Entity) {
         if let Some(row) = self.get_row(entity) {
             self.remove_row(row);
         }
@@ -280,7 +280,7 @@ impl Archetype {
         self.next_row -= 1;
     }
 
-    pub fn get_component<T: Component>(&'_ self, entity: EntityId) -> Result<Ref<'_, T>, AccessComponentError>{
+    pub fn get_component<T: Component>(&'_ self, entity: Entity) -> Result<Ref<'_, T>, AccessComponentError>{
         match self.get_row(entity) {
             Some(row) => self.get_component_row::<T>(row),
             None => Err(AccessComponentError::EntityNotFound),
@@ -307,7 +307,7 @@ impl Archetype {
 
     pub fn get_component_mut<T: Component>(
         &'_ self,
-        entity: EntityId,
+        entity: Entity,
     ) -> Result<RefMut<'_, T>, AccessComponentError> {
         match self.get_row(entity) {
             Some(row) => self.get_component_row_mut::<T>(row),
@@ -340,7 +340,7 @@ impl Archetype {
 
     /// set the component
     /// if the row == len, it pushes
-    pub fn set_component<T: Component>(&self, entity: EntityId, component: T) -> Result<(), AccessComponentError> {
+    pub fn set_component<T: Component>(&self, entity: Entity, component: T) -> Result<(), AccessComponentError> {
         let col = self
             .signature
             .find::<T>()

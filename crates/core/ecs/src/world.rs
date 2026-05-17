@@ -132,24 +132,12 @@ impl World {
             archetype_id = self.create_archetype(T::create_archetype());
         }
 
-        self.archetypes[archetype_id].add_entity(entity.id, components);
+        self.archetypes[archetype_id].add_entity(entity, components);
 
         self.set_entity_to_archetype_map(entity, archetype_id);
 
         (entity, self)
     }
-
-    // pub fn create_entity_with_components(&mut self) -> Entity {
-    //     if let Some(mut entity) = self.free_entity_id.pop(){
-    //         entity.version += 1;
-    //         self.set_entity_to_archetype(entity.id, 0);
-    //         return entity;
-    //     }
-    //
-    //     let entity = Entity { id: self.next_entity_id, version: 0 };
-    //     self.next_entity_id += 1;
-    //     entity
-    // }
 
     pub fn remove_entity(&mut self, entity: Entity) -> Result<&mut World, RemoveEntityError> {
         if self.entity_to_archetype.len() <= entity.id{
@@ -163,7 +151,7 @@ impl World {
         }
 
         let archtype_id = value.0;
-        self.archetypes[archtype_id].remove_entity(entity.id);
+        self.archetypes[archtype_id].remove_entity(entity);
 
         self.free_entity_id.push(entity);
 
@@ -190,10 +178,10 @@ impl World {
         // SAFETY: The component storage won't be filled with a new row, but this is fine
         // because copy_element_from_another_storage take this case into account
         unsafe {
-            new_row = self.archetypes[new_archetype_id].add_entity_no_push(entity.id);
+            new_row = self.archetypes[new_archetype_id].add_entity_no_push(entity);
             debug_assert!(new_row == self.archetypes[new_archetype_id].next_row - 1, "new entity row is not the last row, in add component");
         }
-        let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or(AddComponentError::ArchetypeEntityNotFound)?;
+        let current_row = self.archetypes[current_archetype_id].get_row(entity).ok_or(AddComponentError::ArchetypeEntityNotFound)?;
 
         for current_col_id in 0..self.archetypes[current_archetype_id].signature.0.len() {
             let mut current_col = self.archetypes[current_archetype_id].components[current_col_id].borrow_mut();
@@ -217,13 +205,13 @@ impl World {
             }
         }
 
-        T::initialize_component(component, entity.id, &mut self.archetypes[new_archetype_id]).ok().ok_or(AddComponentError::ArchetypeEntityNotFound)?;
+        T::initialize_component(component, entity, &mut self.archetypes[new_archetype_id]).ok().ok_or(AddComponentError::ArchetypeEntityNotFound)?;
 
         // SAFETY: We don't want to update the comopnent as it has already been done in the loop
         // above
         unsafe {
             self.archetypes[current_archetype_id]
-                .remove_entity_no_storage_update(entity.id);
+                .remove_entity_no_storage_update(entity);
         }
         
         self.set_entity_to_archetype_map(entity, new_archetype_id);
@@ -254,9 +242,9 @@ impl World {
         // SAFETY: The component storage won't be filled with a new row, but this is fine
         // because copy_element_from_another_storage take this case into account
         unsafe {
-            new_row = self.archetypes[new_archetype_id].add_entity_no_push(entity.id);
+            new_row = self.archetypes[new_archetype_id].add_entity_no_push(entity);
         }
-        let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or(RemoveComponentError::ArchetypeEntityNotFound)?;
+        let current_row = self.archetypes[current_archetype_id].get_row(entity).ok_or(RemoveComponentError::ArchetypeEntityNotFound)?;
 
         for current_col_id in 0..self.archetypes[current_archetype_id].signature.0.len() {
             let mut current_col = self.archetypes[current_archetype_id].components[current_col_id].borrow_mut();
@@ -292,7 +280,7 @@ impl World {
         // SAFETY: We don't want to update the comopnent as it has already been done in the loop
         // above
         unsafe {
-            self.archetypes[current_archetype_id].remove_entity_no_storage_update(entity.id);
+            self.archetypes[current_archetype_id].remove_entity_no_storage_update(entity);
         }
 
         self.set_entity_to_archetype_map(entity, new_archetype_id);

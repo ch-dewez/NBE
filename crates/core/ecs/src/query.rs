@@ -1,5 +1,5 @@
 use crate::{
-    archetype::{AccessComponentError, Archetype, ArchetypeRow}, component::Component, entity::EntityId, system::SystemParam, world::World
+    archetype::{AccessComponentError, Archetype, ArchetypeRow}, component::Component, entity::Entity, system::SystemParam, world::World
 };
 use std::{cell::{Ref, RefMut}, marker::PhantomData};
 
@@ -171,9 +171,9 @@ impl<T: Component> QueryArgument for &mut T {
     }
 }
 
-pub struct Entity;
-impl QueryArgument for Entity{
-    type Item<'w> = EntityId;
+pub struct EntityArgument;
+impl QueryArgument for EntityArgument{
+    type Item<'w> = Entity;
     fn filter(_archetypes: &mut Vec<&Archetype>) {}
 
     fn retrieve<'w>(

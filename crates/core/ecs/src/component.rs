@@ -3,7 +3,7 @@ use std::{any::TypeId, cell::RefCell};
 use crate::{
     archetype::{AccessComponentError, AddSignatureError, Archetype, ArchetypeSignature, RemoveSignatureError},
     component_storage::ComponentStorageErased,
-    entity::EntityId,
+    entity::Entity,
 };
 
 pub trait Component: 'static {}
@@ -20,7 +20,7 @@ pub trait ComponentTupple {
     /// remove the comp id in the signature
     fn remove_signature(signature: &mut ArchetypeSignature) -> Result<(), RemoveSignatureError>;
 
-    fn initialize_component(self, entity: EntityId, archetype: &mut Archetype) -> Result<(), AccessComponentError>;
+    fn initialize_component(self, entity: Entity, archetype: &mut Archetype) -> Result<(), AccessComponentError>;
     fn create_archetype() -> Archetype;
 
     /// add empty component storage to the container
@@ -62,7 +62,7 @@ macro_rules! impl_component_tupple {
             }
 
             #[allow(unused_variables)]
-            fn initialize_component(self, entity: EntityId, archetype: &mut Archetype)-> Result<(), AccessComponentError>
+            fn initialize_component(self, entity: Entity, archetype: &mut Archetype)-> Result<(), AccessComponentError>
             {
                 let ($($params),*) = self;
                 $(
