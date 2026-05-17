@@ -121,6 +121,7 @@ impl World {
             entity = free_entity;
         }else {
             entity =  Entity { id: self.next_entity_id, version: 0 };
+            self.next_entity_id += 1;
         }
     
         let signature = T::get_signature();
@@ -134,7 +135,6 @@ impl World {
         self.archetypes[archetype_id].add_entity(entity.id, components);
 
         self.set_entity_to_archetype_map(entity, archetype_id);
-        self.next_entity_id += 1;
 
         (entity, self)
     }
