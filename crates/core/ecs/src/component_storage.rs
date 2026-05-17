@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::{any::{Any, TypeId}, cell::RefCell};
 use crate::{archetype::ArchetypeRow, component::{Component, ComponentId, get_component_id}};
 
 pub trait ComponentStorageErased: Any {
@@ -15,7 +15,7 @@ pub trait ComponentStorageErased: Any {
     fn get_pointer(&self, index: usize) -> *const u8;
     fn get_pointer_mut(&mut self, index: usize) -> *mut u8;
 
-    fn new_vec_of_same_type(&self) -> Box<dyn ComponentStorageErased>;
+    fn new_vec_of_same_type(&self) -> Box<RefCell<dyn ComponentStorageErased>>;
 
     fn copy_element_from_another_storage(&mut self, source_row: ArchetypeRow, dst_row: ArchetypeRow, other: &dyn ComponentStorageErased);
 }
@@ -55,9 +55,9 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
         (&raw mut self[index]) as *mut u8
     }
 
-    fn new_vec_of_same_type(&self) -> Box<dyn ComponentStorageErased>{
+    fn new_vec_of_same_type(&self) -> Box<RefCell<dyn ComponentStorageErased>>{
         let vec_of_type: Vec<T> = Vec::new();
-        Box::new(vec_of_type)
+        Box::new(RefCell::new(vec_of_type))
     }
 
     /// memcpy to dst_row,

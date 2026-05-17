@@ -33,7 +33,7 @@ use crate::{world::World};
 pub type StoredSystem = Box<dyn System>;
 
 pub trait System {
-    fn run(&mut self, world: &mut World);
+    fn run(&mut self, world: &World);
 }
 
 pub trait IntoSystem<Input> {
@@ -76,7 +76,7 @@ macro_rules! impl_system  {
                 FnMut($(<$params as SystemParam>::Item<'b>),*)
         {
 
-            fn run(&mut self, world: &mut World) {
+            fn run(&mut self, world: &World) {
                 #[allow(clippy::too_many_arguments)]
                 fn call_inner<$($params),*> (
                     mut f: impl FnMut($($params),*),
@@ -84,9 +84,8 @@ macro_rules! impl_system  {
                 ) {
                     f($($params),*)
                 }
-                let world_ptr: *mut World = world as *mut World;
                 $(
-                    let $params = unsafe { $params::retrieve(&mut *world_ptr) };
+                    let $params = $params::retrieve(world);
                 )*
 
                 call_inner(&mut self.f, $($params),*);
@@ -106,6 +105,6 @@ pub struct FunctionSystem<Input, F> {
 
 pub trait SystemParam{
     type Item<'w>;
-    fn retrieve<'w>(world: &'w mut World) -> Self::Item<'w>;
+    fn retrieve<'w>(world: &'w World) -> Self::Item<'w>;
 }
 

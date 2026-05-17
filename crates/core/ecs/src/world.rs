@@ -1,6 +1,8 @@
+use std::ops::Deref;
+
 use thiserror::Error;
 
-use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, component_storage::ComponentStorageErased, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
+use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
 
 
 pub struct World {
@@ -88,8 +90,8 @@ impl World {
         index
     }
 
-    pub(crate) fn get_all_archetypes(&mut self) -> &mut Vec<Archetype>{
-        &mut self.archetypes
+    pub(crate) fn get_all_archetypes(&self) -> &Vec<Archetype>{
+        &self.archetypes
     }
 
     fn set_entity_to_archetype_map(&mut self, entity: Entity, archetype: ArchetypeId){
@@ -193,32 +195,24 @@ impl World {
         }
         let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or(AddComponentError::ArchetypeEntityNotFound)?;
 
-        for current_col in 0..self.archetypes[current_archetype_id].signature.0.len() {
-            let component_id = self.archetypes[current_archetype_id].signature.0[current_col];
-            let new_col = self.archetypes[new_archetype_id].signature.find_id(component_id).ok_or(AddComponentError::ComponentCollumnNotFound)?;
+        for current_col_id in 0..self.archetypes[current_archetype_id].signature.0.len() {
+            let mut current_col = self.archetypes[current_archetype_id].components[current_col_id].borrow_mut();
 
-            // SAFETY: I can't safely borrow this storage while borrowing the dst storage as mut.
-            // But it's safe because those are different element of a vec
-            let other_storage_ptr =self.archetypes[current_archetype_id]
-                            .components[current_col]
-                            .as_ref() as *const dyn ComponentStorageErased;
+            let component_id = self.archetypes[current_archetype_id].signature.0[current_col_id];
+            let new_col_id = self.archetypes[new_archetype_id].signature.find_id(component_id).ok_or(AddComponentError::ComponentCollumnNotFound)?;
+            let mut new_col = self.archetypes[new_archetype_id].components[new_col_id].borrow_mut();
 
-            self.archetypes[new_archetype_id]
-                .components[new_col]
+            new_col
                 .copy_element_from_another_storage(
                     current_row, 
                     new_row,
 
-                    unsafe {
-                        & * other_storage_ptr
-                    }
+                    current_col.deref()
                 );
 
             // SAFETY: We don't want to call the destructor because we copied the data
             unsafe {
-                self
-                    .archetypes[current_archetype_id]
-                    .components[current_col]
+                current_col
                     .soft_swap_remove_erased(current_row);
             }
         }
@@ -264,42 +258,33 @@ impl World {
         }
         let current_row = self.archetypes[current_archetype_id].get_row(entity.id).ok_or(RemoveComponentError::ArchetypeEntityNotFound)?;
 
-        for current_col in 0..self.archetypes[current_archetype_id].signature.0.len() {
-            let component_id = self.archetypes[current_archetype_id].signature.0[current_col];
-            let new_col = self.archetypes[new_archetype_id].signature.find_id(component_id);
+        for current_col_id in 0..self.archetypes[current_archetype_id].signature.0.len() {
+            let mut current_col = self.archetypes[current_archetype_id].components[current_col_id].borrow_mut();
+
+            let component_id = self.archetypes[current_archetype_id].signature.0[current_col_id];
+            let new_col_id = self.archetypes[new_archetype_id].signature.find_id(component_id);
 
             // a component that nees to be removed
-            if new_col.is_none(){
-                self.archetypes[current_archetype_id]
-                    .components[current_col]
+            if new_col_id.is_none(){
+                current_col
                     .swap_remove_erased(current_row);
                 continue;
             }
+            let new_col_id = new_col_id.unwrap();
 
-            let new_col = new_col.unwrap();
+            let mut new_col = self.archetypes[new_archetype_id].components[new_col_id].borrow_mut();
 
-            // SAFETY: I can't safely borrow this storage while borrowing the dst storage as mut.
-            // But it's safe because those are different element of a vec
-            let other_storage_ptr =self.archetypes[current_archetype_id]
-                            .components[current_col]
-                            .as_ref() as *const dyn ComponentStorageErased;
-
-            self.archetypes[new_archetype_id]
-                .components[new_col]
+            new_col
                 .copy_element_from_another_storage(
                     current_row, 
                     new_row,
 
-                    unsafe {
-                        & * other_storage_ptr
-                    }
+                    current_col.deref()
                 );
 
             // SAFETY: We don't want to call the destructor because we copied the data
             unsafe {
-                self
-                    .archetypes[current_archetype_id]
-                    .components[current_col]
+                current_col
                     .soft_swap_remove_erased(current_row);
             }
         }

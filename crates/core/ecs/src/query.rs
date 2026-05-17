@@ -1,17 +1,17 @@
 use crate::{
     archetype::{AccessComponentError, Archetype, ArchetypeRow}, component::Component, entity::EntityId, system::SystemParam, world::World
 };
-use std::marker::PhantomData;
+use std::{cell::{Ref, RefMut}, marker::PhantomData};
 
 pub struct Query<'a, T: QueryData, F: QueryFilter = ()> {
-    pub archetypes: Vec<&'a mut Archetype>,
+    pub archetypes: Vec<&'a Archetype>,
     _phantom_data: PhantomData<(T, F)>,
 }
 
 impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
     type Item<'w> = Query<'w, T, F>;
-    fn retrieve<'w>(world: &'w mut World) -> Self::Item<'w> {
-        let mut archetypes: Vec<&mut Archetype> = world.get_all_archetypes().iter_mut().collect();
+    fn retrieve<'w>(world: &'w World) -> Self::Item<'w> {
+        let mut archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
 
         T::filter(&mut archetypes);
         F::filter(&mut archetypes);
@@ -62,11 +62,7 @@ impl<'a, T: QueryData, F: QueryFilter> Iterator for QueryIter<'a, T, F> {
         }
 
         //let archetype: &mut Archetype = self.query.archetypes[self.archetype_index];
-        let archetype = unsafe {
-            let archetype_ptr =
-                (self.query.archetypes[self.archetype_index] as &mut Archetype) as *mut Archetype;
-            &mut *archetype_ptr
-        };
+        let archetype = self.query.archetypes[self.archetype_index];
 
         let value = match T::retrieve(archetype, self.row_index) {
             Ok(result) => Some(result),
@@ -84,9 +80,9 @@ impl<'a, T: QueryData, F: QueryFilter> Iterator for QueryIter<'a, T, F> {
 pub trait QueryData {
     type Item<'a>;
 
-    fn filter(archetypes: &mut Vec<&mut Archetype>);
+    fn filter(archetypes: &mut Vec<&Archetype>);
     fn retrieve<'w>(
-        archetype: &'w mut Archetype,
+        archetype: &'w Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError>;
 }
@@ -98,25 +94,20 @@ macro_rules! impl_query_tupple {
         {
             type Item<'w> = ($($params::Item<'w>),*);
 
-            fn filter(archetypes: &mut Vec<&mut Archetype>){
+            fn filter(archetypes: &mut Vec<&Archetype>){
                 $(
                     $params::filter(archetypes);
                 )*
             }
 
-        fn retrieve<'w>(archetype: &'w mut Archetype, row: ArchetypeRow) -> Result<Self::Item<'w>, AccessComponentError>{
-                let archetype_ptr = archetype as * mut Archetype;
-
-                // TODO: Maybe there's a way to remove this unsafe
+        fn retrieve<'w>(archetype: &'w Archetype, row: ArchetypeRow) -> Result<Self::Item<'w>, AccessComponentError>{
                 #[allow(clippy::needless_question_mark)]
-                unsafe {
-                    Ok((
-                    $(
-                        $params::retrieve(& mut *archetype_ptr, row)?
-                        //$params::retrieve(archetype, row)?
+                Ok((
+                $(
+                    $params::retrieve(archetype, row)?
+                    //$params::retrieve(archetype, row)?
                     ),*
-                    ))
-                }
+                ))
             }
         }
     };
@@ -146,34 +137,34 @@ repeat_macro_with_argument!(impl_query_tupple, 32);
 pub trait QueryArgument {
     type Item<'w>;
 
-    fn filter(archetypes: &mut Vec<&mut Archetype>);
+    fn filter(archetypes: &mut Vec<& Archetype>);
     fn retrieve<'w>(
-        archetype: &'w mut Archetype,
+        archetype: &'w Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError>;
 }
 impl<T: Component> QueryArgument for &T {
-    type Item<'w> = &'w T;
+    type Item<'w> = Ref<'w, T>;
 
-    fn filter(archetypes: &mut Vec<&mut Archetype>) {
+    fn filter(archetypes: &mut Vec<& Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
     }
     fn retrieve<'w>(
-        archetype: &'w mut Archetype,
+        archetype: &'w Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError> {
         archetype.get_component_row::<T>(row)
     }
 }
 impl<T: Component> QueryArgument for &mut T {
-    type Item<'w> = &'w mut T;
+    type Item<'w> = RefMut<'w, T>;
 
-    fn filter(archetypes: &mut Vec<&mut Archetype>) {
+    fn filter(archetypes: &mut Vec<& Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
     }
 
     fn retrieve<'w>(
-        archetype: &'w mut Archetype,
+        archetype: &'w Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError> {
         archetype.get_component_row_mut::<T>(row)
@@ -183,10 +174,10 @@ impl<T: Component> QueryArgument for &mut T {
 pub struct Entity;
 impl QueryArgument for Entity{
     type Item<'w> = EntityId;
-    fn filter(_archetypes: &mut Vec<&mut Archetype>) {}
+    fn filter(_archetypes: &mut Vec<&Archetype>) {}
 
     fn retrieve<'w>(
-        archetype: &'w mut Archetype,
+        archetype: &'w Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError> {
         Ok(archetype.get_entity(row).expect("Row out of bounds in system iteration"))
@@ -194,13 +185,13 @@ impl QueryArgument for Entity{
 }
 
 pub trait QueryFilterArgument {
-    fn filter(archetypes: &mut Vec<&mut Archetype>);
+    fn filter(archetypes: &mut Vec<&Archetype>);
 }
 pub struct With<T: Component> {
     _phantom_data: PhantomData<T>,
 }
 impl<T: Component> QueryFilterArgument for With<T> {
-    fn filter(archetypes: &mut Vec<&mut Archetype>) {
+    fn filter(archetypes: &mut Vec<&Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
     }
 }
@@ -208,7 +199,7 @@ pub struct Without<T: Component> {
     _phantom_data: PhantomData<T>,
 }
 impl<T: Component> QueryFilterArgument for Without<T> {
-    fn filter(archetypes: &mut Vec<&mut Archetype>) {
+    fn filter(archetypes: &mut Vec<&Archetype>) {
         archetypes.retain(|x| !x.signature.contains::<T>());
     }
 }

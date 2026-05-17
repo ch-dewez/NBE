@@ -1,4 +1,4 @@
-use std::any::TypeId;
+use std::{any::TypeId, cell::RefCell};
 
 use crate::{
     archetype::{AccessComponentError, AddSignatureError, Archetype, ArchetypeSignature, RemoveSignatureError},
@@ -24,7 +24,7 @@ pub trait ComponentTupple {
     fn create_archetype() -> Archetype;
 
     /// add empty component storage to the container
-    fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<dyn ComponentStorageErased>>)->Result<(), AddSignatureError>;
+    fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<RefCell<dyn ComponentStorageErased>>>)->Result<(), AddSignatureError>;
 
     fn component_id_match_any_component(id: ComponentId) -> bool;
 }
@@ -74,11 +74,11 @@ macro_rules! impl_component_tupple {
 
             fn create_archetype()-> Archetype{
                 let signature = Self::get_signature();
-                let mut components: Vec<Box<dyn ComponentStorageErased>> = vec![
-                    $( Box::new(Vec::<$params>::new()) ),*
+                let mut components: Vec<Box<RefCell<dyn ComponentStorageErased>>> = vec![
+                    $( Box::new(RefCell::new(Vec::<$params>::new())) ),*
                 ];
 
-                components.sort_by(|a, b| a.get_component_id().cmp(&b.get_component_id()));
+                components.sort_by(|a, b| a.borrow().get_component_id().cmp(&b.borrow().get_component_id()));
 
                 Archetype {
                     signature,
@@ -92,12 +92,12 @@ macro_rules! impl_component_tupple {
 
             #[allow(unused_mut)]
             #[allow(unused_variables)]
-            fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<dyn ComponentStorageErased>>) -> Result<(), AddSignatureError>{
+            fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<RefCell<dyn ComponentStorageErased>>>) -> Result<(), AddSignatureError>{
                 let mut index: usize;
                 $(
                     index = signature.add_sorted::<$params>()?;
                     let new_component_storage: Vec<$params> = Vec::new();
-                    container.insert(index, Box::new(new_component_storage));
+                    container.insert(index, Box::new(RefCell::new(new_component_storage)));
                 )*
 
                 Ok(())
