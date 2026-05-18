@@ -24,7 +24,7 @@
 //
 
 
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{archetype::ArchetypeId, world::World};
 
@@ -36,7 +36,7 @@ pub trait System{
     fn cache(&mut self, world: &World);
     fn clear_cache(&mut self);
 
-    fn get_dependencies(&self) -> &HashSet<SystemDependency>;
+    fn get_dependencies(&self) -> Option<Arc<[SystemDependency]>>;
     fn calculate_dependencies(&mut self, world: &World);
     fn calculate_dependencies_from_cache(&mut self, world: &World);
     fn clear_dependencies(&mut self);
@@ -134,7 +134,8 @@ macro_rules! impl_system  {
                 $(
                     let total_deps:HashSet<SystemDependency> = total_deps.union(&$params).copied().collect();
                 )*
-                self.dependencies = total_deps;
+                let deps_vec: Vec<SystemDependency> = total_deps.into_iter().collect();
+                self.dependencies = Some(Arc::from(deps_vec));
             }
 
             fn calculate_dependencies_from_cache(&mut self, world: &World){
@@ -152,15 +153,16 @@ macro_rules! impl_system  {
                 $(
                     let total_deps:HashSet<SystemDependency> = total_deps.union(&$params).copied().collect();
                 )*
-                self.dependencies = total_deps;
+                let deps_vec: Vec<SystemDependency> = total_deps.into_iter().collect();
+                self.dependencies = Some(Arc::from(deps_vec));
             }
 
-            fn get_dependencies(&self) -> &HashSet<SystemDependency>{
-                &self.dependencies
+            fn get_dependencies(&self) -> Option<Arc<[SystemDependency]>>{
+                self.dependencies.clone()
             }
 
             fn clear_dependencies(&mut self){
-                self.dependencies = Default::default();
+                self.dependencies = None;
             }
         }
     };
@@ -190,7 +192,7 @@ repeat_macro_with_argument!(impl_system_param_tupple, 32);
 pub struct FunctionSystem<Input: SystemParamTupple, F> {
     f: F,
     cache: Option<Input::Cache>,
-    dependencies: HashSet<SystemDependency>
+    dependencies: Option<Arc<[SystemDependency]>>
 }
 
 

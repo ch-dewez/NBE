@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{cell::UnsafeCell, ops::Deref};
 use thiserror::Error;
 
 use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}, system_manager::SystemManager};
@@ -16,9 +16,10 @@ pub struct World<'w> {
     component_to_archetype: ComponentToArchetypeMap,
     signature_to_archetype: SignatureToArchetypeMap,
 
-    system_manager: SystemManager<'w>
+    system_manager: UnsafeCell<SystemManager<'w>>
 }
 
+unsafe impl<'w> Sync for World<'w> {}
 
 #[derive(Error, Debug)]
 pub enum GetArchetypeFromEntityError{
@@ -64,7 +65,7 @@ impl<'w> World<'w> {
             entity_to_archetype: Default::default(),
             component_to_archetype: Default::default(),
             signature_to_archetype: Default::default(),
-            system_manager: SystemManager::new()
+            system_manager: UnsafeCell::new(SystemManager::new())
         };
 
         world.create_archetype(Archetype::new_blanck());
@@ -73,7 +74,7 @@ impl<'w> World<'w> {
     }
 
     fn create_archetype(&mut self, archetype:Archetype) -> ArchetypeId{
-        self.system_manager.invalidate_cache();
+        self.system_manager.get_mut().invalidate_cache();
 
         let index: ArchetypeId = self.archetypes.len();
 
@@ -289,13 +290,16 @@ impl<'w> World<'w> {
         Ok(self)
     }
 
-    pub fn add_system<T, S: System + 'w>(&mut self, system: impl IntoSystem<T, System = S>) -> &mut Self{
-        self.system_manager.add_system(system);
+    pub fn add_system<T, S: System + 'w + Send + Sync>(&mut self, system: impl IntoSystem<T, System = S>) -> &mut Self{
+        self.system_manager.get_mut().add_system(system);
         self
     }
 
-    pub fn step(&self){
-        self.system_manager.step(self);
+    pub fn step(&mut self){
+        // Safe, system manager doesn't access it self
+        unsafe {
+            (*self.system_manager.get()).step(self);
+        }
     }
 }
 
