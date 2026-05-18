@@ -1,8 +1,7 @@
-use std::{cell::RefCell, ops::Deref};
-
+use std::ops::Deref;
 use thiserror::Error;
 
-use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}};
+use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}, system_manager::SystemManager};
 
 
 pub struct World<'w> {
@@ -13,12 +12,11 @@ pub struct World<'w> {
     // store full Entity to know what is the next version
     free_entity_id: Vec<Entity>,
 
-    entity_to_archetype: Vec<Option<(ArchetypeId, EntityVersion)>>, // entity (index in the vec) -> &Archetype, row index
+    entity_to_archetype: Vec<Option<(ArchetypeId, EntityVersion)>>, // entity (index in the vec) -> &Archetype
     component_to_archetype: ComponentToArchetypeMap,
     signature_to_archetype: SignatureToArchetypeMap,
 
-    system_cache_invalidated: bool,
-    systems: Vec<Box<RefCell<dyn System + 'w>>>
+    system_manager: SystemManager<'w>
 }
 
 
@@ -66,8 +64,7 @@ impl<'w> World<'w> {
             entity_to_archetype: Default::default(),
             component_to_archetype: Default::default(),
             signature_to_archetype: Default::default(),
-            systems: Default::default(),
-            system_cache_invalidated: false
+            system_manager: SystemManager::new()
         };
 
         world.create_archetype(Archetype::new_blanck());
@@ -76,7 +73,7 @@ impl<'w> World<'w> {
     }
 
     fn create_archetype(&mut self, archetype:Archetype) -> ArchetypeId{
-        self.system_cache_invalidated = true;
+        self.system_manager.invalidate_cache();
 
         let index: ArchetypeId = self.archetypes.len();
 
@@ -293,20 +290,12 @@ impl<'w> World<'w> {
     }
 
     pub fn add_system<T, S: System + 'w>(&mut self, system: impl IntoSystem<T, System = S>) -> &mut Self{
-        self.systems.push(Box::new(RefCell::new(system.into_system())));
+        self.system_manager.add_system(system);
         self
     }
 
-    pub fn step(&mut self) {
-        if self.system_cache_invalidated{
-            for system in &self.systems{
-                system.borrow_mut().cache(self);
-            }
-        }
-        for system in &self.systems{
-
-            system.borrow_mut().run(self);
-        }
+    pub fn step(&self){
+        self.system_manager.step(self);
     }
 }
 

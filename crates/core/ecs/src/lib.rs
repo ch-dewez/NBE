@@ -3,6 +3,7 @@ mod util_macro;
 
 mod archetype;
 mod component_storage;
+mod system_manager;
 
 #[cfg(test)]
 mod test;
