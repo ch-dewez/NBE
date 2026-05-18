@@ -24,7 +24,9 @@
 //
 
 
-use crate::{world::World};
+use std::collections::HashSet;
+
+use crate::{archetype::ArchetypeId, world::World};
 
 
 pub type StoredSystem = Box<dyn System>;
@@ -32,6 +34,18 @@ pub type StoredSystem = Box<dyn System>;
 pub trait System{
     fn run(&mut self, world: &World);
     fn cache(&mut self, world: &World);
+    fn clear_cache(&mut self);
+
+    fn get_dependencies(&self) -> &HashSet<SystemDependency>;
+    fn calculate_dependencies(&mut self, world: &World);
+    fn calculate_dependencies_from_cache(&mut self, world: &World);
+    fn clear_dependencies(&mut self);
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+pub enum SystemDependency {
+    Command,
+    Archetype(ArchetypeId)
 }
 
 pub trait IntoSystem<Input> {
@@ -55,7 +69,8 @@ macro_rules! impl_into_system {
             fn into_system(self) -> Self::System {
                 FunctionSystem {
                     f: self,
-                    cache: None
+                    cache: None,
+                    dependencies: Default::default()
                 }
             }
         }
@@ -103,6 +118,50 @@ macro_rules! impl_system  {
                     ($($params::cache(world)),*)
                 );
             }
+
+            fn clear_cache(&mut self){
+                self.cache = None;
+            }
+
+
+            fn calculate_dependencies(&mut self, world: &World){
+                let total_deps = std::collections::HashSet::new();
+
+                $(
+                    let $params = $params::get_dependencies(world);
+                )*
+
+                $(
+                    let total_deps:HashSet<SystemDependency> = total_deps.union(&$params).copied().collect();
+                )*
+                self.dependencies = total_deps;
+            }
+
+            fn calculate_dependencies_from_cache(&mut self, world: &World){
+                let total_deps = std::collections::HashSet::new();
+                if self.cache.is_none(){
+                    self.cache(world);
+                }
+
+                let ($($params),*) = self.cache.as_ref().unwrap();
+
+                $(
+                    let $params = $params::get_dependencies_from_cache(world, $params);
+                )*
+
+                $(
+                    let total_deps:HashSet<SystemDependency> = total_deps.union(&$params).copied().collect();
+                )*
+                self.dependencies = total_deps;
+            }
+
+            fn get_dependencies(&self) -> &HashSet<SystemDependency>{
+                &self.dependencies
+            }
+
+            fn clear_dependencies(&mut self){
+                self.dependencies = Default::default();
+            }
         }
     };
 }
@@ -130,7 +189,8 @@ repeat_macro_with_argument!(impl_system_param_tupple, 32);
 
 pub struct FunctionSystem<Input: SystemParamTupple, F> {
     f: F,
-    cache: Option<Input::Cache>
+    cache: Option<Input::Cache>,
+    dependencies: HashSet<SystemDependency>
 }
 
 
@@ -138,7 +198,11 @@ pub trait SystemParam{
     type Item<'w>;
     type Cache;
     fn retrieve<'w>(world: &'w World) -> Self::Item<'w>;
+
     fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Self::Item<'w>;
     fn cache(world: &World) -> Self::Cache;
+
+    fn get_dependencies(world: &World) -> HashSet<SystemDependency>;
+    fn get_dependencies_from_cache(world: &World, cache: &Self::Cache) -> HashSet<SystemDependency>;
 }
 

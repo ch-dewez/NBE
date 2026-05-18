@@ -1,7 +1,7 @@
 use crate::{
-    archetype::{AccessComponentError, Archetype, ArchetypeId, ArchetypeRow}, component::Component, entity::Entity, system::SystemParam, world::World
+    archetype::{AccessComponentError, Archetype, ArchetypeId, ArchetypeRow}, component::Component, entity::Entity, system::{SystemDependency, SystemParam}, world::World
 };
-use std::{cell::{Ref, RefMut}, marker::PhantomData};
+use std::{cell::{Ref, RefMut}, collections::HashSet, marker::PhantomData};
 
 pub struct Query<'a, T: QueryData, F: QueryFilter = ()> {
     pub archetypes: Vec<&'a Archetype>,
@@ -10,6 +10,12 @@ pub struct Query<'a, T: QueryData, F: QueryFilter = ()> {
 
 pub struct QueryCache{
     pub archetypes: Vec<ArchetypeId>
+}
+
+#[allow(dead_code)]
+enum QueryDependency {
+    Archetypes,
+    Command, // no yet implemented
 }
 
 impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
@@ -45,6 +51,21 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
             archetypes: cache.archetypes.iter().map(|id| archetypes[*id]).collect(),
             _phantom_data: Default::default(),
         }
+    }
+
+
+    fn get_dependencies(world: &World) -> HashSet<SystemDependency> {
+        let cache = Self::cache(world);
+        Self::get_dependencies_from_cache(world, &cache)
+    }
+
+    fn get_dependencies_from_cache(_world: &World, cache: &Self::Cache) -> HashSet<SystemDependency>{
+        cache
+            .archetypes
+            .iter()
+            .map(|id| SystemDependency::Archetype(*id))
+            .collect()
+
     }
 }
 
@@ -113,6 +134,10 @@ pub trait QueryData {
 
     fn filter(archetypes: &mut Vec<&Archetype>);
     fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World);
+    
+    #[allow(private_interfaces)]
+    fn get_dependency() -> QueryDependency;
+
     fn retrieve<'w>(
         archetype: &'w Archetype,
         row: ArchetypeRow,
@@ -137,7 +162,7 @@ macro_rules! impl_query_tupple {
                 )*
             }
 
-        fn retrieve<'w>(archetype: &'w Archetype, row: ArchetypeRow) -> Result<Self::Item<'w>, AccessComponentError>{
+            fn retrieve<'w>(archetype: &'w Archetype, row: ArchetypeRow) -> Result<Self::Item<'w>, AccessComponentError>{
                 #[allow(clippy::needless_question_mark)]
                 Ok((
                 $(
@@ -145,6 +170,11 @@ macro_rules! impl_query_tupple {
                     //$params::retrieve(archetype, row)?
                     ),*
                 ))
+            }
+
+            #[allow(private_interfaces)]
+            fn get_dependency() -> QueryDependency{
+                QueryDependency::Archetypes
             }
         }
     };
@@ -154,6 +184,9 @@ repeat_macro_with_argument_without_0!(impl_query_tupple, 32);
 pub trait QueryFilter {
     fn filter(archetypes: &mut Vec<&Archetype>);
     fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World);
+
+    #[allow(private_interfaces)]
+    fn get_dependency() -> QueryDependency;
 }
 macro_rules! impl_query_tupple {
     ($( $params:ident ),*) => {
@@ -171,6 +204,11 @@ macro_rules! impl_query_tupple {
                 $(
                     $params::filter_id(archetypes, world);
                 )*
+            }
+
+            #[allow(private_interfaces)]
+            fn get_dependency() -> QueryDependency{
+                QueryDependency::Archetypes
             }
         }
     };
