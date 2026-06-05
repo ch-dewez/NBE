@@ -10,6 +10,7 @@ mod test;
 
 pub mod entity;
 pub mod component;
+pub mod ressource;
 pub mod world;
 pub mod system;
 pub mod query;

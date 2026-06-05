@@ -22,40 +22,52 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
     type Item<'w> = Query<'w, T, F>;
     type Cache = QueryCache;
 
-    fn retrieve<'w>(world: &'w World) -> Self::Item<'w> {
+    fn retrieve<'w>(world: &'w World) -> Option<Self::Item<'w>> {
         let mut archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
 
         T::filter(&mut archetypes);
         F::filter(&mut archetypes);
 
-        Query {
+        if archetypes.is_empty(){
+            return None;
+        }
+
+        Some(Query {
             archetypes,
             _phantom_data: Default::default(),
-        }
+        })
     }
 
-    fn cache(world: &World) -> Self::Cache {
+    fn cache(world: &World) -> Option<Self::Cache> {
         let mut archetypes : Vec<ArchetypeId> = (0..world.archetypes.len()).collect();
 
         T::filter_id(&mut archetypes, world);
         F::filter_id(&mut archetypes, world);
 
-        QueryCache{
-            archetypes
+        if archetypes.is_empty(){
+            return None;
         }
+
+        Some(QueryCache{
+            archetypes
+        })
     }
 
-    fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Self::Item<'w> {
+    fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Option<Self::Item<'w>> {
         let archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
-        Query {
+        Some(Query {
             archetypes: cache.archetypes.iter().map(|id| archetypes[*id]).collect(),
             _phantom_data: Default::default(),
-        }
+        })
     }
 
 
     fn get_dependencies(world: &World) -> HashSet<SystemDependency> {
         let cache = Self::cache(world);
+        if cache.is_none(){
+            return HashSet::new();
+        }
+        let cache = cache.unwrap();
         Self::get_dependencies_from_cache(world, &cache)
     }
 

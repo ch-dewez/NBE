@@ -1,7 +1,7 @@
-use std::{cell::UnsafeCell, ops::Deref};
+use std::{any::{Any, TypeId}, cell::{Ref, RefCell, RefMut, UnsafeCell}, collections::HashMap, ops::Deref};
 use thiserror::Error;
 
-use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, system::{IntoSystem, System}, system_manager::SystemManager};
+use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, ressource::Ressource, system::{IntoSystem, System}, system_manager::SystemManager};
 
 
 pub struct World<'w> {
@@ -15,6 +15,8 @@ pub struct World<'w> {
     entity_to_archetype: Vec<Option<(ArchetypeId, EntityVersion)>>, // entity (index in the vec) -> &Archetype
     component_to_archetype: ComponentToArchetypeMap,
     signature_to_archetype: SignatureToArchetypeMap,
+
+    ressources: HashMap<TypeId, Box<RefCell<dyn Ressource>>>,
 
     system_manager: UnsafeCell<SystemManager<'w>>
 }
@@ -65,6 +67,9 @@ impl<'w> World<'w> {
             entity_to_archetype: Default::default(),
             component_to_archetype: Default::default(),
             signature_to_archetype: Default::default(),
+
+            ressources: Default::default(),
+
             system_manager: UnsafeCell::new(SystemManager::new())
         };
 
@@ -158,6 +163,34 @@ impl<'w> World<'w> {
         self.free_entity_id.push(entity);
 
         Ok(self)
+    }
+
+    /// add the ressource, if it was already present, it overrides it
+    pub fn add_ressource<T: Ressource>(&mut self, ressource:T){
+        self.ressources.insert(TypeId::of::<T>(), Box::new(RefCell::new(ressource)));
+    }
+
+    /// remove the ressource, if it was not there, it does nothing
+    pub fn remove_ressource<T: Ressource>(&mut self){
+        self.ressources.remove(&TypeId::of::<T>());
+    }
+
+    pub fn get_ressource<T: Ressource>(&'_ self) -> Option<Ref<'_, T>> {
+        let trait_ref = self.ressources.get(&TypeId::of::<T>()).and_then(|el| el.try_borrow().ok());
+        trait_ref.map(|cell_ref|{
+            Ref::map(cell_ref, |reference| {
+                (reference as &dyn Any).downcast_ref::<T>().unwrap()
+            })
+        })
+    }
+
+    pub fn get_ressource_mut<'a, T: Ressource>(&'a self) -> Option<RefMut<'a, T>> {
+        let trait_ref = self.ressources.get(&TypeId::of::<T>()).and_then(|el| el.try_borrow_mut().ok());
+        trait_ref.map(|cell_ref|{
+            RefMut::map(cell_ref, |reference| {
+                (reference as &mut dyn Any).downcast_mut::<T>().unwrap()
+            })
+        })
     }
 
     pub fn add_component<T:ComponentTupple>(&mut self, entity: Entity, component:T) -> Result<&mut Self, AddComponentError>{

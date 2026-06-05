@@ -26,7 +26,7 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{archetype::ArchetypeId, world::World};
+use crate::{archetype::ArchetypeId, ressource::RessourceId, world::World};
 
 
 pub type StoredSystem = Box<dyn System>;
@@ -45,7 +45,8 @@ pub trait System{
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub enum SystemDependency {
     Command,
-    Archetype(ArchetypeId)
+    Archetype(ArchetypeId),
+    Ressource(RessourceId)
 }
 
 pub trait IntoSystem<Input> {
@@ -102,11 +103,19 @@ macro_rules! impl_system  {
                     let ($($params),*) = cache;
                     $(
                         let $params = $params::from_cache($params, world);
+                        if $params.is_none(){
+                            return;
+                        }
+                        let $params = $params.unwrap();
                     )*
                     call_inner(&mut self.f, $($params),*);
                 }else {
                     $(
                         let $params = $params::retrieve(world);
+                        if $params.is_none(){
+                            return;
+                        }
+                        let $params = $params.unwrap();
                     )*
                     call_inner(&mut self.f, $($params),*);
                 }
@@ -114,9 +123,15 @@ macro_rules! impl_system  {
 
             fn cache(&mut self, world: &World)
             {
-                self.cache = Some(
-                    ($($params::cache(world)),*)
-                );
+                $(
+                    let $params = $params::cache(world);
+                    if $params.is_none(){
+                        self.cache = None;
+                        return;
+                    }
+                    let $params = $params.unwrap();
+                )*
+                self.cache = Some(($($params),*));
             }
 
             fn clear_cache(&mut self){
@@ -199,10 +214,10 @@ pub struct FunctionSystem<Input: SystemParamTupple, F> {
 pub trait SystemParam{
     type Item<'w>;
     type Cache;
-    fn retrieve<'w>(world: &'w World) -> Self::Item<'w>;
+    fn retrieve<'w>(world: &'w World) -> Option<Self::Item<'w>>;
 
-    fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Self::Item<'w>;
-    fn cache(world: &World) -> Self::Cache;
+    fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Option<Self::Item<'w>>;
+    fn cache(world: &World) -> Option<Self::Cache>;
 
     fn get_dependencies(world: &World) -> HashSet<SystemDependency>;
     fn get_dependencies_from_cache(world: &World, cache: &Self::Cache) -> HashSet<SystemDependency>;
