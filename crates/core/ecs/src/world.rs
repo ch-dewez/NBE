@@ -1,7 +1,7 @@
 use std::{any::{Any, TypeId}, cell::{Ref, RefCell, RefMut, UnsafeCell}, collections::HashMap, ops::Deref};
 use thiserror::Error;
 
-use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, ressource::{Ressource, get_ressource_id}, system::{IntoSystem, System}, system_manager::SystemManager};
+use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, event::{Event, EventRes, SingleEventRes}, ressource::{ResMut, Ressource, get_ressource_id}, system::{IntoSystem, System}, system_manager::SystemManager};
 
 
 pub struct World<'w> {
@@ -332,6 +332,23 @@ impl<'w> World<'w> {
         unsafe {
             (*self.system_manager.get()).add_system(system, self);
         }
+        self
+    }
+
+    pub fn add_single_event<T: Event>(&mut self) -> &mut Self{
+        self.add_ressource(SingleEventRes::<T>::new());
+        self.add_system(|mut res: ResMut<SingleEventRes<T>>| {
+            res.event = None;
+        });
+        self
+    }
+
+    pub fn add_event<T: Event>(&mut self)-> &mut Self{
+        self.add_ressource(EventRes::<T>::new());
+        self.add_system(|mut res: ResMut<EventRes<T>>|{
+            res.swap();
+            res.clear_current();
+        });
         self
     }
 

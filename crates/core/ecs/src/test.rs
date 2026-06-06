@@ -1,5 +1,7 @@
 use std::{cell::Ref, collections::HashMap};
 
+use crate::{system_local::{Local, SystemLocal}, world::FromWorld};
+
 //
 //
 //
@@ -396,4 +398,111 @@ fn test_resource_system_with_step() {
     // Test direct retrieve with empty local storage
     let score = Res::<Score>::retrieve(&world, &HashMap::new()).unwrap();
     assert_eq!(score.0, 20);
+}
+
+#[test]
+fn test_single_event_with_add_event() {
+    use crate::event::{Event, SingleEventWriter, SingleEventReader};
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct MySingleEvent(u32);
+    impl Event for MySingleEvent {}
+
+    fn writer(mut w: SingleEventWriter<MySingleEvent>) {
+        w.write(MySingleEvent(100));
+    }
+
+    fn reader(r: SingleEventReader<MySingleEvent>, mut score: ResMut<Score>) {
+        if let Some(ev) = r.read() {
+            score.0 = ev.0;
+        } else {
+            score.0 = 0;
+        }
+    }
+
+    let mut world = World::new();
+    world.add_ressource(Score(0));
+    world.add_single_event::<MySingleEvent>();
+    
+    world.add_system(writer);
+    world.add_system(reader);
+
+    world.step();
+    assert_eq!(world.get_ressource::<Score>().unwrap().0, 100);
+
+    // Test clearing in next frame
+    let mut world2 = World::new();
+    world2.add_ressource(Score(0));
+    world2.add_single_event::<MySingleEvent>();
+    
+    world2.add_system(|mut w: SingleEventWriter<MySingleEvent>, score: Res<Score>| {
+        if score.0 == 0 {
+            w.write(MySingleEvent(42));
+        }
+    });
+    world2.add_system(reader);
+
+    world2.step();
+    assert_eq!(world2.get_ressource::<Score>().unwrap().0, 42);
+
+    world2.step();
+    // Second step, Score was 42 so no write. Clear system should have cleared it.
+    assert_eq!(world2.get_ressource::<Score>().unwrap().0, 0);
+}
+
+#[test]
+fn test_event_with_add_event() {
+    use crate::event::{Event, EventWriter, EventReader};
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct MyEvent(u32);
+    impl Event for MyEvent {}
+
+    struct OneEveryTwoLocal (bool);
+    impl SystemLocal for OneEveryTwoLocal {}
+    impl FromWorld for OneEveryTwoLocal {
+        fn from_world(_world: &World) -> Self {
+            OneEveryTwoLocal(true)
+        }
+    }
+
+    fn writer(mut w: EventWriter<MyEvent>, mut do_it: Local<OneEveryTwoLocal>) {
+        if do_it.0 {
+            w.write(MyEvent(10));
+            w.write(MyEvent(20));
+        }
+        do_it.0 = !do_it.0;
+    }
+
+    fn reader(mut r: EventReader<MyEvent>, mut score: ResMut<Score>) {
+        let mut sum = 0;
+        for ev in r.iter() {
+            sum += ev.0;
+        }
+        score.0 += sum;
+    }
+
+    let mut world = World::new();
+    world.add_ressource(Score(0));
+    world.add_event::<MyEvent>();
+    
+    world.add_system(writer);
+    world.add_system(reader);
+
+
+    world.step();
+    // Frame 1: previous=[] this=[10, 20] -> sum=30
+    assert_eq!(world.get_ressource::<Score>().unwrap().0, 30);
+
+    world.step();
+    // Frame 2: 
+    // Last frame event already handled, no new event
+    assert_eq!(world.get_ressource::<Score>().unwrap().0, 30);
+    world.step();
+    // Frame 3: 
+    // New events
+    assert_eq!(world.get_ressource::<Score>().unwrap().0, 60);
+    // Frame 4: 
+    // No new events
+    assert_eq!(world.get_ressource::<Score>().unwrap().0, 60);
 }

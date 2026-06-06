@@ -36,7 +36,6 @@ impl<'a, T:SystemLocal + FromWorld> SystemParam for Local<'a, T>{
 
     fn retrieve<'w, 'l>(_world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> 
     {
-
         let trait_ref = local.get(&get_local_id::<T>()).and_then(|el| el.try_borrow_mut().ok());
         trait_ref.map(|cell_ref|{
             Local(
