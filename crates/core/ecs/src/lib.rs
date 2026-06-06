@@ -13,4 +13,5 @@ pub mod component;
 pub mod ressource;
 pub mod world;
 pub mod system;
+pub mod system_local;
 pub mod query;

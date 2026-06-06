@@ -24,14 +24,16 @@
 //
 
 
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 
-use crate::{archetype::ArchetypeId, ressource::RessourceId, world::World};
+use crate::{archetype::ArchetypeId, ressource::RessourceId, system_local::LocalStorage , world::World};
 
 
 pub type StoredSystem = Box<dyn System>;
 
 pub trait System{
+    fn init(&mut self, world: &World);
+
     fn run(&mut self, world: &World);
     fn cache(&mut self, world: &World);
     fn clear_cache(&mut self);
@@ -61,9 +63,9 @@ macro_rules! impl_into_system {
         #[allow(unused)]
         impl<F: FnMut($($params),*), $($params: SystemParam + 'static),*> IntoSystem<($($params),*)> for F 
         where
-            for<'a, 'b> &'a mut F:
+            for<'a, 'b, 'c> &'a mut F:
             FnMut($($params),*) +
-            FnMut($(<$params as SystemParam>::Item<'b>),*)
+            FnMut($(<$params as SystemParam>::Item<'b, 'c>),*)
         {
             type System = FunctionSystem<($($params),*), Self>;
 
@@ -71,7 +73,10 @@ macro_rules! impl_into_system {
                 FunctionSystem {
                     f: self,
                     cache: None,
-                    dependencies: Default::default()
+                    dependencies: Default::default(),
+
+                    local: HashMap::new()
+
                 }
             }
         }
@@ -85,10 +90,15 @@ macro_rules! impl_system  {
         #[allow(unused)]
     impl<F: FnMut($($params),*), $($params: SystemParam + 'static),*> System for FunctionSystem<($($params),*), F> 
         where
-            for<'a, 'b> &'a mut F:
+            for<'a, 'b, 'c> &'a mut F:
                 FnMut($($params),*) +
-                FnMut($(<$params as SystemParam>::Item<'b>),*),
+                FnMut($(<$params as SystemParam>::Item<'b, 'c>),*),
         {
+            fn init(&mut self, world: &World){
+                $(
+                    $params::init(world, &mut self.local);
+                )*
+            }
 
             fn run(&mut self, world: &World) {
                 #[allow(clippy::too_many_arguments)]
@@ -102,7 +112,7 @@ macro_rules! impl_system  {
                 if let Some(cache) = &self.cache.as_ref(){
                     let ($($params),*) = cache;
                     $(
-                        let $params = $params::from_cache($params, world);
+                        let $params = $params::from_cache($params, world, &self.local);
                         if $params.is_none(){
                             return;
                         }
@@ -111,7 +121,7 @@ macro_rules! impl_system  {
                     call_inner(&mut self.f, $($params),*);
                 }else {
                     $(
-                        let $params = $params::retrieve(world);
+                        let $params = $params::retrieve(world, &self.local);
                         if $params.is_none(){
                             return;
                         }
@@ -124,7 +134,7 @@ macro_rules! impl_system  {
             fn cache(&mut self, world: &World)
             {
                 $(
-                    let $params = $params::cache(world);
+                    let $params = $params::cache(world, &self.local);
                     if $params.is_none(){
                         self.cache = None;
                         return;
@@ -143,7 +153,7 @@ macro_rules! impl_system  {
                 let total_deps = std::collections::HashSet::new();
 
                 $(
-                    let $params = $params::get_dependencies(world);
+                    let $params = $params::get_dependencies(world, &self.local);
                 )*
 
                 $(
@@ -162,7 +172,7 @@ macro_rules! impl_system  {
                 let ($($params),*) = self.cache.as_ref().unwrap();
 
                 $(
-                    let $params = $params::get_dependencies_from_cache(world, $params);
+                    let $params = $params::get_dependencies_from_cache(world, $params, &self.local);
                 )*
 
                 $(
@@ -187,7 +197,7 @@ repeat_macro_with_argument!(impl_system, 32);
 repeat_macro_with_argument!(impl_into_system, 32);
 
 pub trait SystemParamTupple {
-    type Item<'w>;
+    type Item<'w, 'l>;
     type Cache;
 }
 
@@ -196,7 +206,7 @@ macro_rules! impl_system_param_tupple {
         #[allow(non_snake_case)]
         #[allow(unused)]
         impl<$($params: SystemParam),*> SystemParamTupple for ($($params),*){
-            type Item<'w> = ($($params::Item<'w>),*);
+            type Item<'w, 'l> = ($($params::Item<'w, 'l>),*);
             type Cache = ($($params::Cache),*);
         }
     };
@@ -207,19 +217,25 @@ repeat_macro_with_argument!(impl_system_param_tupple, 32);
 pub struct FunctionSystem<Input: SystemParamTupple, F> {
     f: F,
     cache: Option<Input::Cache>,
-    dependencies: Option<Arc<[SystemDependency]>>
-}
+    dependencies: Option<Arc<[SystemDependency]>>,
 
+    local: LocalStorage
+}
+unsafe impl<Input: SystemParamTupple, F> Send for FunctionSystem<Input, F>{}
+unsafe impl<Input: SystemParamTupple, F> Sync for FunctionSystem<Input, F>{}
 
 pub trait SystemParam{
-    type Item<'w>;
+    type Item<'w, 'l>;
     type Cache;
-    fn retrieve<'w>(world: &'w World) -> Option<Self::Item<'w>>;
 
-    fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Option<Self::Item<'w>>;
-    fn cache(world: &World) -> Option<Self::Cache>;
+    fn init(world:&World, local: &mut LocalStorage);
 
-    fn get_dependencies(world: &World) -> HashSet<SystemDependency>;
-    fn get_dependencies_from_cache(world: &World, cache: &Self::Cache) -> HashSet<SystemDependency>;
+    fn retrieve<'w, 'l>(world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>;
+
+    fn from_cache<'w, 'l>(cache: &Self::Cache, world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>;
+    fn cache(world: &World, local: &LocalStorage) -> Option<Self::Cache>;
+
+    fn get_dependencies(world: &World, local: &LocalStorage) -> HashSet<SystemDependency>;
+    fn get_dependencies_from_cache(world: &World, cache: &Self::Cache, local: &LocalStorage) -> HashSet<SystemDependency>;
 }
 

@@ -26,8 +26,10 @@ impl<'w> SystemManager<'w>{
     }
 
 
-    pub fn add_system<T, S: System + 'w + Send + Sync>(&mut self, system: impl IntoSystem<T, System = S>) {
-        self.systems.push(Box::new(system.into_system()));
+    pub fn add_system<T, S: System + 'w + Send + Sync>(&mut self, system: impl IntoSystem<T, System = S>, world: &World) {
+        let mut system = Box::new(system.into_system());
+        system.init(world);
+        self.systems.push(system);
     }
 
     fn update_system_independence(system_independence: &mut SystemIndependence, new_dependencies: Arc<[SystemDependency]>, new_system: usize){

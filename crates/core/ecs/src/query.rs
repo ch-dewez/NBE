@@ -1,5 +1,5 @@
 use crate::{
-    archetype::{AccessComponentError, Archetype, ArchetypeId, ArchetypeRow}, component::Component, entity::Entity, system::{SystemDependency, SystemParam}, world::World
+    archetype::{AccessComponentError, Archetype, ArchetypeId, ArchetypeRow}, component::Component, entity::Entity, system::{SystemDependency, SystemParam}, system_local::LocalStorage, world::World
 };
 use std::{cell::{Ref, RefMut}, collections::HashSet, marker::PhantomData};
 
@@ -19,10 +19,12 @@ enum QueryDependency {
 }
 
 impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
-    type Item<'w> = Query<'w, T, F>;
+    type Item<'w, 'l> = Query<'w, T, F>;
     type Cache = QueryCache;
 
-    fn retrieve<'w>(world: &'w World) -> Option<Self::Item<'w>> {
+    fn init(_world:&World, _local: &mut LocalStorage) {}
+
+    fn retrieve<'w, 'l>(world: &'w World, _local:&'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
         let mut archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
 
         T::filter(&mut archetypes);
@@ -38,7 +40,7 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
         })
     }
 
-    fn cache(world: &World) -> Option<Self::Cache> {
+    fn cache(world: &World, _local: &LocalStorage) -> Option<Self::Cache> {
         let mut archetypes : Vec<ArchetypeId> = (0..world.archetypes.len()).collect();
 
         T::filter_id(&mut archetypes, world);
@@ -53,7 +55,7 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
         })
     }
 
-    fn from_cache<'w>(cache: &Self::Cache, world: &'w World) -> Option<Self::Item<'w>> {
+    fn from_cache<'w, 'l>(cache: &Self::Cache, world: &'w World, _local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
         let archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
         Some(Query {
             archetypes: cache.archetypes.iter().map(|id| archetypes[*id]).collect(),
@@ -62,16 +64,16 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
     }
 
 
-    fn get_dependencies(world: &World) -> HashSet<SystemDependency> {
-        let cache = Self::cache(world);
+    fn get_dependencies(world: &World, local: &LocalStorage) -> HashSet<SystemDependency> {
+        let cache = Self::cache(world, local);
         if cache.is_none(){
             return HashSet::new();
         }
         let cache = cache.unwrap();
-        Self::get_dependencies_from_cache(world, &cache)
+        Self::get_dependencies_from_cache(world, &cache, local)
     }
 
-    fn get_dependencies_from_cache(_world: &World, cache: &Self::Cache) -> HashSet<SystemDependency>{
+    fn get_dependencies_from_cache(_world: &World, cache: &Self::Cache, _local: &LocalStorage) -> HashSet<SystemDependency>{
         cache
             .archetypes
             .iter()

@@ -1,7 +1,7 @@
 use std::{any::{Any, TypeId}, cell::{Ref, RefCell, RefMut, UnsafeCell}, collections::HashMap, ops::Deref};
 use thiserror::Error;
 
-use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, ressource::Ressource, system::{IntoSystem, System}, system_manager::SystemManager};
+use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, ressource::{Ressource, get_ressource_id}, system::{IntoSystem, System}, system_manager::SystemManager};
 
 
 pub struct World<'w> {
@@ -19,6 +19,10 @@ pub struct World<'w> {
     ressources: HashMap<TypeId, Box<RefCell<dyn Ressource>>>,
 
     system_manager: UnsafeCell<SystemManager<'w>>
+}
+
+pub trait FromWorld {
+    fn from_world(world: &World) -> Self;
 }
 
 unsafe impl<'w> Sync for World<'w> {}
@@ -167,16 +171,16 @@ impl<'w> World<'w> {
 
     /// add the ressource, if it was already present, it overrides it
     pub fn add_ressource<T: Ressource>(&mut self, ressource:T){
-        self.ressources.insert(TypeId::of::<T>(), Box::new(RefCell::new(ressource)));
+        self.ressources.insert(get_ressource_id::<T>(), Box::new(RefCell::new(ressource)));
     }
 
     /// remove the ressource, if it was not there, it does nothing
     pub fn remove_ressource<T: Ressource>(&mut self){
-        self.ressources.remove(&TypeId::of::<T>());
+        self.ressources.remove(&get_ressource_id::<T>());
     }
 
     pub fn get_ressource<T: Ressource>(&'_ self) -> Option<Ref<'_, T>> {
-        let trait_ref = self.ressources.get(&TypeId::of::<T>()).and_then(|el| el.try_borrow().ok());
+        let trait_ref = self.ressources.get(&get_ressource_id::<T>()).and_then(|el| el.try_borrow().ok());
         trait_ref.map(|cell_ref|{
             Ref::map(cell_ref, |reference| {
                 (reference as &dyn Any).downcast_ref::<T>().unwrap()
@@ -185,7 +189,7 @@ impl<'w> World<'w> {
     }
 
     pub fn get_ressource_mut<'a, T: Ressource>(&'a self) -> Option<RefMut<'a, T>> {
-        let trait_ref = self.ressources.get(&TypeId::of::<T>()).and_then(|el| el.try_borrow_mut().ok());
+        let trait_ref = self.ressources.get(&get_ressource_id::<T>()).and_then(|el| el.try_borrow_mut().ok());
         trait_ref.map(|cell_ref|{
             RefMut::map(cell_ref, |reference| {
                 (reference as &mut dyn Any).downcast_mut::<T>().unwrap()
@@ -324,7 +328,10 @@ impl<'w> World<'w> {
     }
 
     pub fn add_system<T, S: System + 'w + Send + Sync>(&mut self, system: impl IntoSystem<T, System = S>) -> &mut Self{
-        self.system_manager.get_mut().add_system(system);
+        // Safe, system manager doesn't access it self from world
+        unsafe {
+            (*self.system_manager.get()).add_system(system, self);
+        }
         self
     }
 
