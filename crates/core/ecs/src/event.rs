@@ -6,14 +6,28 @@ pub trait Event: 'static {}
 
 /// This ressource behind a SingleEvent
 pub struct SingleEventRes<T: Event>{
-    pub(crate) event: Option<T>
+    pub(crate) previous_frame: Option<(usize, T)>,
+    pub(crate) this_frame: Option<(usize, T)>,
+
+    next_id: usize,
 }
 impl<T: Event> Ressource for SingleEventRes<T> {}
 impl<T: Event> SingleEventRes<T>{
     pub(crate) fn new() -> Self {
         Self{
-            event:None
+            previous_frame: None,
+            this_frame:None,
+
+            next_id: 0
         }
+    }
+
+    pub(crate) fn swap(&mut self){
+        std::mem::swap(&mut self.this_frame, &mut self.previous_frame);
+    }
+
+    pub(crate) fn clear_this_frame(&mut self){
+        self.this_frame = None;
     }
 }
 
@@ -50,7 +64,10 @@ pub struct SingleEventWriter<'a, T: Event>(ResMut<'a, SingleEventRes<T>>);
 /// Works the same way as an event, but it can only stores one event
 /// there should only be one event writer in the systems but having multiple doesn't break anything
 /// except that some events might not get handled properly
-pub struct SingleEventReader<'a, T: Event>(Res<'a, SingleEventRes<T>>);
+pub struct SingleEventReader<'w, 'l, T: Event>{ 
+    res:Res<'w, SingleEventRes<T>> ,
+    local: Local<'l, EventReaderNextEvent>
+}
 
 /// Event writer, use to dispatch/emit an event. Allow for multiple event in a single frame
 pub struct EventWriter<'a, T: Event>(ResMut<'a, EventRes<T>>);
@@ -78,94 +95,103 @@ pub struct EventReaderIter<'w, 'l, T:Event>{
     next_index_to_visit: usize
 }
 
-macro_rules! impl_event_system_param {
-    ($res:ident, $t:ident, $event_res:ident) => {
+macro_rules! impl_event_writer {
+    ($t:ident, $event_res:ident) => {
 
         impl<'a, T: Event> SystemParam for $t<'a, T> {
             type Item<'w, 'l> = $t<'w, T>;
             type Cache = ();
 
             fn init(world: &World, local:&mut LocalStorage){
-                $res::<$event_res<T>>::init(world, local);
+                ResMut::<$event_res<T>>::init(world, local);
             }
 
             fn retrieve<'w, 'l>(world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>{
-                $res::<'w, $event_res<T>>::retrieve(world, local).map(move |res| $t(res))
+                ResMut::<'w, $event_res<T>>::retrieve(world, local).map(move |res| $t(res))
             }
 
             fn cache(world: &World, local: &LocalStorage) -> Option<Self::Cache>{
-                $res::<$event_res<T>>::cache(world, local)
+                ResMut::<$event_res<T>>::cache(world, local)
             }
 
             fn from_cache<'w, 'l>(cache: &Self::Cache, world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>{
-                $res::<'w, $event_res<T>>::from_cache(cache, world, local).map(move |el |$t(el))
+                ResMut::<'w, $event_res<T>>::from_cache(cache, world, local).map(move |el |$t(el))
             }
 
 
             fn get_dependencies(world: &World, local: &LocalStorage) -> HashSet<SystemDependency>{
-                $res::<$event_res<T>>::get_dependencies(world, local)
+                ResMut::<$event_res<T>>::get_dependencies(world, local)
             }
 
             fn get_dependencies_from_cache(world: &World, cache: &Self::Cache, local: &LocalStorage) -> HashSet<SystemDependency>{
-                $res::<$event_res<T>>::get_dependencies_from_cache(world, cache, local)
+                ResMut::<$event_res<T>>::get_dependencies_from_cache(world, cache, local)
 
             }
         }
     };
 }
-impl_event_system_param!(Res, SingleEventReader, SingleEventRes);
-impl_event_system_param!(ResMut, SingleEventWriter, SingleEventRes);
-impl_event_system_param!(ResMut, EventWriter, EventRes);
+impl_event_writer!(SingleEventWriter, SingleEventRes);
+impl_event_writer!(EventWriter, EventRes);
 
-impl<'a, 'b, T: Event> SystemParam for EventReader<'a, 'b, T> {
-    type Item<'w, 'l> = EventReader<'w, 'l, T>;
-    type Cache = ();
+macro_rules! impl_event_reader {
+    ($t:ident, $event_res:ident, $local:ident) => {
 
-    fn init(world: &World, local:&mut LocalStorage){
-        Res::<EventRes<T>>::init(world, local);
-        Local::<EventReaderNextEvent>::init(world, local);
-    }
+        impl<'a, 'b, T: Event> SystemParam for $t<'a, 'b, T> {
+            type Item<'w, 'l> = $t<'w, 'l, T>;
+            type Cache = ();
 
-    fn retrieve<'w, 'l>(world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>{
-        let res_opt = Res::<'w, EventRes<T>>::retrieve(world, local);
-        let local_event_opt = Local::<'l, EventReaderNextEvent>::retrieve(world, local);
+            fn init(world: &World, local:&mut LocalStorage){
+                Res::<$event_res<T>>::init(world, local);
+                Local::<$local>::init(world, local);
+            }
 
-        if let (Some(res), Some(local_event)) = (res_opt, local_event_opt){
-            Some(EventReader { res, local: local_event })
-        }else{
-            None
+            fn retrieve<'w, 'l>(world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>{
+                let res_opt = Res::<'w, $event_res<T>>::retrieve(world, local);
+                let local_event_opt = Local::<'l, $local>::retrieve(world, local);
+
+                if let (Some(res), Some(local_event)) = (res_opt, local_event_opt) && res.next_id > local_event.0{
+                    Some($t { res, local: local_event })
+                }else{
+                    None
+                }
+            }
+
+            fn cache(_world: &World, _local: &LocalStorage) -> Option<Self::Cache>{
+                Some(())
+            }
+
+            fn from_cache<'w, 'l>(cache: &Self::Cache, world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>{
+                let res_opt = Res::<'w, $event_res<T>>::from_cache(cache, world, local);
+                let local_event_opt = Local::<'l, $local>::from_cache(cache, world, local);
+
+                if let (Some(res), Some(local_event)) = (res_opt, local_event_opt) && res.next_id > local_event.0{
+                    Some($t { res, local: local_event })
+                }else{
+                    None
+                }
+            }
+
+
+            fn get_dependencies(world: &World, local: &LocalStorage) -> HashSet<SystemDependency>{
+                Res::<$event_res<T>>::get_dependencies(world, local)
+            }
+
+            fn get_dependencies_from_cache(world: &World, cache: &Self::Cache, local: &LocalStorage) -> HashSet<SystemDependency>{
+                Res::<$event_res<T>>::get_dependencies_from_cache(world, cache, local)
+
+            }
         }
-    }
-
-    fn cache(world: &World, local: &LocalStorage) -> Option<Self::Cache>{
-        Res::<EventRes<T>>::cache(world, local)
-    }
-
-    fn from_cache<'w, 'l>(cache: &Self::Cache, world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>{
-        let res_opt = Res::<'w, EventRes<T>>::from_cache(cache, world, local);
-        let local_event_opt = Local::<'l, EventReaderNextEvent>::from_cache(cache, world, local);
-
-        if let (Some(res), Some(local_event)) = (res_opt, local_event_opt){
-            Some(EventReader { res, local: local_event })
-        }else{
-            None
-        }
-    }
-
-
-    fn get_dependencies(world: &World, local: &LocalStorage) -> HashSet<SystemDependency>{
-        Res::<EventRes<T>>::get_dependencies(world, local)
-    }
-
-    fn get_dependencies_from_cache(world: &World, cache: &Self::Cache, local: &LocalStorage) -> HashSet<SystemDependency>{
-        Res::<EventRes<T>>::get_dependencies_from_cache(world, cache, local)
-
-    }
+    };
 }
+
+impl_event_reader!(SingleEventReader, SingleEventRes, EventReaderNextEvent);
+impl_event_reader!(EventReader, EventRes, EventReaderNextEvent);
 
 impl<'a, T: Event> SingleEventWriter<'a, T>{
     pub fn write(&mut self, value: T){
-        self.0.event = Some(value);
+        let id = self.0.next_id;
+        self.0.next_id += 1;
+        self.0.this_frame = Some((id, value));
     }
 }
 
@@ -178,9 +204,17 @@ impl<'a, T: Event> EventWriter<'a, T>{
 }
 
 
-impl<'a, T: Event> SingleEventReader<'a, T>{
-    pub fn read(&self) -> Option<&T>{
-        self.0.event.as_ref()
+impl<'a, 'b, T: Event> SingleEventReader<'a, 'b, T>{
+    pub fn read(&mut self) -> Option<&T>{
+        if let Some((id, event)) = &self.res.previous_frame && *id >= self.local.0{
+            self.local.0 = self.res.next_id;
+            return Some(event);
+        };
+        if let Some((id, event)) = &self.res.this_frame && *id >= self.local.0 {
+            self.local.0 = self.res.next_id;
+            return Some(event);
+        };
+        None
     }
 }
 

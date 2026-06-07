@@ -412,7 +412,7 @@ fn test_single_event_with_add_event() {
         w.write(MySingleEvent(100));
     }
 
-    fn reader(r: SingleEventReader<MySingleEvent>, mut score: ResMut<Score>) {
+    fn reader(mut r: SingleEventReader<MySingleEvent>, mut score: ResMut<Score>) {
         if let Some(ev) = r.read() {
             score.0 = ev.0;
         } else {
@@ -430,7 +430,6 @@ fn test_single_event_with_add_event() {
     world.step();
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 100);
 
-    // Test clearing in next frame
     let mut world2 = World::new();
     world2.add_ressource(Score(0));
     world2.add_single_event::<MySingleEvent>();
@@ -438,6 +437,8 @@ fn test_single_event_with_add_event() {
     world2.add_system(|mut w: SingleEventWriter<MySingleEvent>, score: Res<Score>| {
         if score.0 == 0 {
             w.write(MySingleEvent(42));
+        }else if score.0 == 42 {
+            w.write(MySingleEvent(1));
         }
     });
     world2.add_system(reader);
@@ -446,8 +447,48 @@ fn test_single_event_with_add_event() {
     assert_eq!(world2.get_ressource::<Score>().unwrap().0, 42);
 
     world2.step();
-    // Second step, Score was 42 so no write. Clear system should have cleared it.
-    assert_eq!(world2.get_ressource::<Score>().unwrap().0, 0);
+    // Second step, Score was 42 so no write.
+    assert_eq!(world2.get_ressource::<Score>().unwrap().0, 1);
+
+    world2.step();
+    // third step, no event this frame, reader is not executed so it's the alst as last frame
+    assert_eq!(world2.get_ressource::<Score>().unwrap().0, 1);
+}
+
+#[test]
+fn test_single_event_reader_before() {
+    use crate::event::{Event, SingleEventWriter, SingleEventReader};
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct MySingleEvent(u32);
+    impl Event for MySingleEvent {}
+
+    fn writer(mut w: SingleEventWriter<MySingleEvent>) {
+        w.write(MySingleEvent(100));
+    }
+
+    fn reader(mut r: SingleEventReader<MySingleEvent>, mut score: ResMut<Score>) {
+        if let Some(ev) = r.read() {
+            score.0 = ev.0;
+        } else {
+            score.0 = 1;
+        }
+    }
+
+    let mut world = World::new();
+    world.add_ressource(Score(0));
+    world.add_single_event::<MySingleEvent>();
+    
+    world.add_system(reader);
+    world.add_system(writer);
+
+    world.step();
+    // the reader shoud not execute so the score is 0
+    assert_eq!(world.get_ressource::<Score>().unwrap().0, 0);
+
+    world.step();
+    // the reader shoud execute so the score is 100
+    assert_eq!(world.get_ressource::<Score>().unwrap().0, 100);
 }
 
 #[test]

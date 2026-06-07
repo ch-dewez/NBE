@@ -338,7 +338,8 @@ impl<'w> World<'w> {
     pub fn add_single_event<T: Event>(&mut self) -> &mut Self{
         self.add_ressource(SingleEventRes::<T>::new());
         self.add_system(|mut res: ResMut<SingleEventRes<T>>| {
-            res.event = None;
+            res.swap();
+            res.clear_this_frame();
         });
         self
     }
