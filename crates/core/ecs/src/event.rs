@@ -205,6 +205,8 @@ impl<'a, T: Event> EventWriter<'a, T>{
 
 
 impl<'a, 'b, T: Event> SingleEventReader<'a, 'b, T>{
+    /// read the event, if this is called from a system, it can be safely unwrap because the system
+    /// won't have been called if not
     pub fn read(&mut self) -> Option<&T>{
         if let Some((id, event)) = &self.res.previous_frame && *id >= self.local.0{
             self.local.0 = self.res.next_id;

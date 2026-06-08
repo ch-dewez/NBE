@@ -1,6 +1,6 @@
 use std::{cell::Ref, collections::HashMap};
 
-use crate::{system_local::{Local, SystemLocal}, world::FromWorld};
+use crate::{query::EntityArgument, system_local::{Local, SystemLocal}, world::FromWorld};
 
 //
 //
@@ -546,4 +546,75 @@ fn test_event_with_add_event() {
     // Frame 4: 
     // No new events
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 60);
+}
+
+#[test]
+fn test_command_system() {
+    use crate::command::{Command, AddEntityCommand, RemoveEntityCommand, AddComponentsCommand, RemoveComponentCommand, CommandHandlerTrait};
+    use crate::event::{Event, SingleEventReader, SingleEventWriter};
+
+    #[derive(Clone)]
+    struct DoAdd;
+    impl Event for DoAdd {}
+    #[derive(Clone)]
+    struct DoRemove;
+    impl Event for DoRemove {}
+
+    struct DummyHandler;
+    impl CommandHandlerTrait for DummyHandler {}
+
+    let mut world = World::new();
+    world.add_ressource(Command(vec![]));
+    world.add_single_event::<DoAdd>();
+    world.add_single_event::<DoRemove>();
+
+    let entity = world.spawn_entity(Position { x: 0.0, y: 0.0 }).0;
+
+    // 1. Test AddComponentsCommand and AddEntityCommand
+    world.add_system(move |mut reader: SingleEventReader<DoAdd>, mut commands: ResMut<Command>| {
+        if reader.read().is_some() {
+            commands.0.push(Box::new(AddComponentsCommand::new(entity, Health(100))));
+            commands.0.push(Box::new(AddEntityCommand::new_no_callbacks(Velocity { x: 1.0, y: 1.0 })));
+        }
+    });
+
+    SingleEventWriter::retrieve(&world, &HashMap::new()).unwrap().write(DoAdd);
+
+    world.step();
+    world.handle_command(&mut DummyHandler);
+
+    // Verify AddComponentsCommand
+    let query_h = Query::<&Health>::retrieve(&world, &HashMap::new()).unwrap();
+    assert_eq!(query_h.into_iter().count(), 1);
+
+    // Verify AddEntityCommand
+    let query_v = Query::<&Velocity>::retrieve(&world, &HashMap::new()).unwrap();
+    assert_eq!(query_v.into_iter().count(), 1);
+
+    // 2. Test RemoveComponentCommand and RemoveEntityCommand
+    // We need to find the new entity with Velocity to remove it
+    let velocity_entity = {
+        let query = Query::<EntityArgument, With<Velocity>>::retrieve(&world, &HashMap::new()).unwrap();
+        query.into_iter().next().unwrap()
+    };
+
+    world.add_system(move |mut reader: SingleEventReader<DoRemove>, mut commands: ResMut<Command>| {
+        if reader.read().is_some() {
+            commands.0.push(Box::new(RemoveComponentCommand::<Health>::new(entity)));
+            commands.0.push(Box::new(RemoveEntityCommand::new(velocity_entity)));
+        }
+    });
+
+    SingleEventWriter::retrieve(&world, &HashMap::new()).unwrap().write(DoRemove);
+
+    world.step();
+    world.handle_command(&mut DummyHandler);
+
+    // Verify RemoveComponentCommand
+    let query_h_after = Query::<&Health>::retrieve(&world, &HashMap::new()).unwrap();
+    assert_eq!(query_h_after.into_iter().count(), 0);
+
+    // Verify RemoveEntityCommand
+    let query_v_after = Query::<&Velocity>::retrieve(&world, &HashMap::new()).unwrap();
+    assert_eq!(query_v_after.into_iter().count(), 0);
 }

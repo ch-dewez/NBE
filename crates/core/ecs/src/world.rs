@@ -1,7 +1,7 @@
 use std::{any::{Any, TypeId}, cell::{Ref, RefCell, RefMut, UnsafeCell}, collections::HashMap, ops::Deref};
 use thiserror::Error;
 
-use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, component::{Component, ComponentTupple}, entity::{Entity, EntityId, EntityVersion}, event::{Event, EventRes, SingleEventRes}, ressource::{ResMut, Ressource, get_ressource_id}, system::{IntoSystem, System}, system_manager::SystemManager};
+use crate::{archetype::{AddSignatureError, Archetype, ArchetypeId, ComponentToArchetypeMap, RemoveSignatureError, SignatureToArchetypeMap}, command::{Command, CommandHandler, CommandHandlerTrait}, component::ComponentTupple, entity::{Entity, EntityId, EntityVersion}, event::{Event, EventRes, SingleEventRes}, ressource::{ResMut, Ressource, get_ressource_id}, system::{IntoSystem, System, SystemParam}, system_manager::SystemManager};
 
 
 pub struct World<'w> {
@@ -258,7 +258,7 @@ impl<'w> World<'w> {
         Ok(self)
     }
 
-    pub fn remove_component<T:Component>(&'_ mut self, entity: Entity) -> Result<&'_ mut Self, RemoveComponentError>{
+    pub fn remove_component<T:ComponentTupple>(&'_ mut self, entity: Entity) -> Result<&'_ mut Self, RemoveComponentError>{
         let current_archetype_id = self.get_archetype_from_entity(entity)?;
         // get the new archetype
 
@@ -351,6 +351,23 @@ impl<'w> World<'w> {
             res.clear_current();
         });
         self
+    }
+
+    /// external command handler is supposed to handle command not handled by the world
+    pub fn handle_command<T: CommandHandlerTrait>(&mut self, external_command_handler: &mut T){
+        let world_ptr: *mut World = self;
+        let mut commands = ResMut::<Command>::retrieve(self, &HashMap::new()).unwrap();
+
+        println!("Commands len {}", commands.0.len());
+
+        for command in &mut commands.0{
+            match command.get_handler() {
+                CommandHandler::World => unsafe {command.handle_from_world(&mut (*world_ptr))},
+                CommandHandler::External => command.handle_from_external(external_command_handler),
+            }
+        }
+
+        commands.0.clear();
     }
 
     pub fn step(&mut self){

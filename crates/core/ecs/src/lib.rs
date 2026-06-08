@@ -16,3 +16,4 @@ pub mod system;
 pub mod system_local;
 pub mod query;
 pub mod event;
+pub mod command;
