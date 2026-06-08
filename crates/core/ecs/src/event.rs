@@ -106,8 +106,12 @@ macro_rules! impl_event_writer {
                 ResMut::<$event_res<T>>::init(world, local);
             }
 
-            fn retrieve<'w, 'l>(world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>{
-                ResMut::<'w, $event_res<T>>::retrieve(world, local).map(move |res| $t(res))
+            fn retrieve<'w, 'l>(world: &'w World, _local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>{
+                Self::retrieve_no_local(world)
+            }
+
+            fn retrieve_no_local<'w, 'l>(world: &'w World) -> Option<Self::Item<'w, 'l>> {
+                ResMut::<'w, $event_res<T>>::retrieve_no_local(world).map(move |res| $t(res))
             }
 
             fn cache(world: &World, local: &LocalStorage) -> Option<Self::Cache>{

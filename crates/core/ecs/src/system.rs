@@ -1,29 +1,3 @@
-// use crate::world::World;
-//
-// pub trait System {
-//     fn run(&self, world: &mut World);
-// }
-// macro_rules! impl_into_system {
-//     ($( $params:ident ),*) => {
-//         #[allow(unused_variables)]
-//         impl<$($params:for<'a>SystemParam<'a>),*> System for fn ($($params),*) -> ()
-//         {
-//             fn run(&self, world: & mut World)
-//             {
-//                 self($($params::retrieve(world)),*);
-//             }
-//         }
-//     }
-// }
-// //repeat_macro_with_argument!(impl_into_system, 32);
-// repeat_macro_with_argument_without_0!(impl_into_system, 32);
-//
-// pub trait SystemParam<'a>{
-//     fn retrieve(world: &'a mut World) -> Self;
-// }
-//
-
-
 use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 use crate::{archetype::ArchetypeId, ressource::RessourceId, system_local::LocalStorage , world::World};
@@ -231,6 +205,7 @@ pub trait SystemParam{
     fn init(world:&World, local: &mut LocalStorage);
 
     fn retrieve<'w, 'l>(world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>;
+    fn retrieve_no_local<'w, 'l>(_world: &'w World) -> Option<Self::Item<'w, 'l>> { panic!(r#"You cannot retrieve this  "system param" without local"#); }
 
     fn from_cache<'w, 'l>(cache: &Self::Cache, world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>;
     fn cache(world: &World, local: &LocalStorage) -> Option<Self::Cache>;

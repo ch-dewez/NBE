@@ -40,6 +40,10 @@ impl<'a, T: Ressource> SystemParam for Res<'a, T> {
     fn init(_world:&World, _local: &mut LocalStorage) {}
 
     fn retrieve<'w, 'l>(world: &'w World, _local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
+        Self::retrieve_no_local(world)
+    }
+
+    fn retrieve_no_local<'w, 'l>(world: &'w World) -> Option<Self::Item<'w, 'l>> {
         world.get_ressource::<T>().map(|reference| Res(reference))
     }
 
@@ -71,6 +75,10 @@ impl<'a, T: Ressource> SystemParam for ResMut<'a, T> {
     fn init(_world:&World, _local: &mut LocalStorage) {}
 
     fn retrieve<'w, 'l>(world: &'w World, _local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
+        Self::retrieve_no_local(world)
+    }
+
+    fn retrieve_no_local<'w, 'l>(world: &'w World) -> Option<Self::Item<'w, 'l>> {
         world.get_ressource_mut::<T>().map(|reference: RefMut<'w, T>| ResMut::<'w, T>(reference))
     }
 
