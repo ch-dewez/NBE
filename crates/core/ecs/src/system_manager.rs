@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+//use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{system::{IntoSystem, System, SystemDependency}, world::World};
 
 type SystemIndependence<'w> = Vec<Vec<(Arc<[SystemDependency]>, usize)>>;
 pub struct SystemManager<'w>{
     cache_invalidated: bool,
-    system_independence_cache: SystemIndependence<'w>,
+    //system_independence_cache: SystemIndependence<'w>,
     systems: Vec<Box<dyn System + 'w + Send + Sync>>,
 }
 
@@ -15,7 +15,7 @@ impl<'w> SystemManager<'w>{
     pub fn new() -> Self{
         SystemManager { 
             cache_invalidated: true, // starts at true so that it is initialized first frame
-            system_independence_cache: Default::default(),
+            //system_independence_cache: Default::default(),
             systems: Default::default()
         }
 
@@ -32,6 +32,7 @@ impl<'w> SystemManager<'w>{
         self.systems.push(system);
     }
 
+    #[allow(dead_code)]
     fn update_system_independence(system_independence: &mut SystemIndependence, new_dependencies: Arc<[SystemDependency]>, new_system: usize){
         let mut overlapping_groups: Vec<usize> = Vec::new();
         let mut found_match: bool = false;
@@ -70,36 +71,43 @@ impl<'w> SystemManager<'w>{
     }
 
     fn cache(&mut self, world: &World){
-            for system in &mut self.systems{
-                system.cache(world);
-                system.calculate_dependencies_from_cache(world);
-            }
+        for system in &mut self.systems{
+            system.cache(world);
+            system.calculate_dependencies_from_cache(world);
+        }
 
-            let mut system_independence: SystemIndependence<'w> = vec![];
-
-            for (index, system) in self.systems.iter().enumerate(){
-                let dependencies = system.get_dependencies().expect("Fail to get system dependencies even though we calculated them. Should not be possible.");
-                Self::update_system_independence(&mut system_independence, dependencies, index);
-            }
-
-            self.system_independence_cache = system_independence;
+        // let mut system_independence: SystemIndependence<'w> = vec![];
+        //
+        // for (index, system) in self.systems.iter().enumerate(){
+        //     let dependencies = system.get_dependencies().expect("Fail to get system dependencies even though we calculated them. Should not be possible.");
+        //     Self::update_system_independence(&mut system_independence, dependencies, index);
+        // }
+        //
+        // self.system_independence_cache = system_independence;
     }
 
     pub fn step(&mut self, world: &World) {
         if self.cache_invalidated{
                 self.cache(world);
         }
-         self
-            .system_independence_cache
-            .par_iter()
-            .for_each(|group|{
-                for (_, system_idx) in group {
-                    unsafe {
-                        let self_ref = &mut *(self as *const Self as *mut Self);
-
-                        self_ref.systems[*system_idx].run(world);
-                    }
-                }
+         // self
+         //    .system_independence_cache
+         //    .par_iter()
+         //    .iter()
+         //    .for_each(|group|{
+         //        for (_, system_idx) in group {
+         //            unsafe {
+         //                let self_ref = &mut *(self as *const Self as *mut Self);
+         //
+         //                self_ref.systems[*system_idx].run(world);
+         //            }
+         //        }
+         //    });
+        self
+            .systems
+            .iter_mut()
+            .for_each(|system| {
+                system.run(world);
             });
     }
 }
