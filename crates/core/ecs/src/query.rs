@@ -8,6 +8,16 @@ pub struct Query<'a, T: QueryData, F: QueryFilter = ()> {
     _phantom_data: PhantomData<(T, F)>,
 }
 
+impl<'a, T: QueryData, F: QueryFilter> Query<'a, T, F> {
+    pub fn count(&self) -> usize{
+        self
+            .archetypes
+            .iter()
+            .map(|archetype| archetype.get_row_count())
+            .sum()
+    }
+}
+
 pub struct QueryCache{
     pub archetypes: Vec<ArchetypeId>
 }
@@ -45,10 +55,6 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
 
         T::filter_id(&mut archetypes, world);
         F::filter_id(&mut archetypes, world);
-
-        if archetypes.is_empty(){
-            return None;
-        }
 
         Some(QueryCache{
             archetypes

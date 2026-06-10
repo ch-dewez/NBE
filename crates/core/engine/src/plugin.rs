@@ -9,5 +9,5 @@ pub trait Plugin: Any {
 
 // TODO: Maybe I should not put the whole app in it, but that's the easiest way to do it
 pub struct PluginContext<'a, 'b> {
-    pub(crate) application: &'a mut Application<'b>,
+    pub application: &'a mut Application<'b>,
 }

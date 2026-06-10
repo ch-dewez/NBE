@@ -19,6 +19,7 @@ pub trait CommandTrait: Any + 'static {
 
 pub trait CommandHandlerTrait: Any { }
 
+#[derive(Default)]
 pub struct Command (pub Vec<Box<dyn CommandTrait>>);
 impl Ressource for Command { }
 

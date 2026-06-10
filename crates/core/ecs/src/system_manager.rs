@@ -71,6 +71,7 @@ impl<'w> SystemManager<'w>{
     }
 
     fn cache(&mut self, world: &World){
+        self.cache_invalidated = false;
         for system in &mut self.systems{
             system.cache(world);
             system.calculate_dependencies_from_cache(world);
@@ -88,7 +89,7 @@ impl<'w> SystemManager<'w>{
 
     pub fn step(&mut self, world: &World) {
         if self.cache_invalidated{
-                self.cache(world);
+            self.cache(world);
         }
          // self
          //    .system_independence_cache

@@ -1,0 +1,18 @@
+[package]
+name = "gl_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+renderdoc = []
+
+[dependencies]
+engine.workspace = true
+ecs.workspace = true
+opengl.workspace = true
+window.workspace = true
+core_components.workspace = true
+glam.workspace = true
+
+[build-dependencies]
+assets_management.workspace = true

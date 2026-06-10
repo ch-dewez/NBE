@@ -6,7 +6,7 @@ use crate::{app_command::AppCommandHandler, plugin::{Plugin, PluginContext}};
 
 
 pub struct Application<'w> {
-    world: World<'w>,
+    pub world: World<'w>,
     plugins: Vec<Box<dyn Plugin>>,
 }
 

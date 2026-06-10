@@ -1,0 +1,14 @@
+[package]
+name = "opengl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+engine.workspace = true
+ecs.workspace = true
+window.workspace = true
+
+glam.workspace = true
+
+glow = "0.17.0"

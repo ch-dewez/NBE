@@ -79,6 +79,8 @@ impl<'w> World<'w> {
 
         world.create_archetype(Archetype::new_blanck());
 
+        world.add_ressource(Command::default());
+
         world
     }
 
@@ -170,13 +172,16 @@ impl<'w> World<'w> {
     }
 
     /// add the ressource, if it was already present, it overrides it
-    pub fn add_ressource<T: Ressource>(&mut self, ressource:T){
+    pub fn add_ressource<T: Ressource>(&mut self, ressource:T) -> &mut Self{
         self.ressources.insert(get_ressource_id::<T>(), Box::new(RefCell::new(ressource)));
+        self
     }
-
+    
+    
     /// remove the ressource, if it was not there, it does nothing
-    pub fn remove_ressource<T: Ressource>(&mut self){
+    pub fn remove_ressource<T: Ressource>(&mut self) -> &mut Self{
         self.ressources.remove(&get_ressource_id::<T>());
+        self
     }
 
     pub fn get_ressource<T: Ressource>(&'_ self) -> Option<Ref<'_, T>> {
@@ -357,8 +362,6 @@ impl<'w> World<'w> {
     pub fn handle_command<T: CommandHandlerTrait>(&mut self, external_command_handler: &mut T){
         let world_ptr: *mut World = self;
         let mut commands = ResMut::<Command>::retrieve(self, &HashMap::new()).unwrap();
-
-        println!("Commands len {}", commands.0.len());
 
         for command in &mut commands.0{
             match command.get_handler() {

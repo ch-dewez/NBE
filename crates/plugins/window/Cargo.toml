@@ -1,0 +1,9 @@
+[package]
+name = "window"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+glfw = "0.62.0"
+engine.workspace = true
+ecs.workspace = true
