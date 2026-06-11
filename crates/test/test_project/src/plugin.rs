@@ -8,7 +8,7 @@ use ecs::{
     ressource::{Res, ResMut},
     system::SystemParam,
 };
-use engine::{app_command::StopAppCommand, plugin::Plugin};
+use engine::{app_command::StopAppCommand, application::DeltaTimeS, plugin::Plugin};
 use gl_renderer::{camera::Camera, default_shaders::DefaultShaders};
 use glam::{Quat, Vec2, Vec3, Vec4};
 use opengl::{
@@ -43,6 +43,10 @@ fn quit_app(
             command.0.push(Box::new(StopAppCommand {}));
         }
     }
+}
+
+fn fps_printer(dt: Res<DeltaTimeS>){
+    println!("FPS: {}", 1.0/dt.0);
 }
 
 #[derive(Default)]
@@ -147,9 +151,9 @@ impl Plugin for GamePlugin {
             Vec3::new(1.0, 1.0, 1.0),
         );
         let velocity = Velocity(Vec3 {
-            x: 0.005,
-            y: 0.005,
-            z: 0.005,
+            x: 2.0,
+            y: 2.0,
+            z: 2.0,
         });
 
         let program_texture = Rc::new(Program::new(
@@ -178,10 +182,10 @@ impl Plugin for GamePlugin {
             Quat::IDENTITY,
             Vec3::new(1.0, 1.0, 1.0),
         );
-        let velocity2 = Velocity(Vec3 {
-            x: 0.005,
-            y: 0.005,
-            z: -0.005,
+        let _velocity2 = Velocity(Vec3 {
+            x: 2.0,
+            y: 2.0,
+            z: -2.0,
         });
 
         let mut window = ResMut::<GLFWWindowRes>::retrieve_no_local(&context.application.world)
@@ -196,18 +200,19 @@ impl Plugin for GamePlugin {
             .application
             .world
             .spawn_entity((mesh_comp, mat_comp, transform, velocity)).1
-            .spawn_entity((mesh_comp2, mat_comp2, transform2, velocity2)).1
+            .spawn_entity((mesh_comp2, mat_comp2, transform2)).1
             .spawn_entity((
                 Camera::new_perspective_default(16.0 / 9.0),
                 Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE),
                 CameraMovementComponent {
-                    speed: 0.02,
+                    speed: 2.0,
                     mouse_sensitivity: 0.01,
                 },
             ))
             .1
             .add_system(movement::move_system)
             .add_system(move_camera_system)
+            .add_system(fps_printer)
             .add_system(quit_app);
     }
 

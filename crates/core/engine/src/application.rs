@@ -1,9 +1,11 @@
-use std::any::{TypeId};
+use std::{any::TypeId, time::Instant};
 
-use ecs::{world::World};
+use ecs::{ressource::{ResMut, Ressource}, system::SystemParam, world::World};
 
 use crate::{app_command::AppCommandHandler, plugin::{Plugin, PluginContext}};
 
+pub struct DeltaTimeS (pub f32);
+impl Ressource for DeltaTimeS {}
 
 pub struct Application<'w> {
     pub world: World<'w>,
@@ -12,8 +14,10 @@ pub struct Application<'w> {
 
 impl<'w> Application<'w> {
     pub fn new() -> Self{
+        let mut world = World::new();
+        world.add_ressource(DeltaTimeS(1.0/60.0));
         Application { 
-            world: World::new(),
+            world,
             plugins: vec![],
         }
     }
@@ -54,6 +58,8 @@ impl<'w> Application<'w> {
 
     pub fn run(&mut self){
         loop {
+            let time = Instant::now();
+
             self.world.step();
             // temporarily replace self.plugins so that there are no lifetimes, then we will
             // place it back
@@ -71,6 +77,9 @@ impl<'w> Application<'w> {
                 self.init_plugin(plugin.as_mut());
                 self.plugins.push(plugin);
             }
+
+            let elapsed = time.elapsed();
+            ResMut::<DeltaTimeS>::retrieve_no_local(&self.world).expect("Couldn't get Delta Time").0 = elapsed.as_secs_f32();
         }
     }
 }

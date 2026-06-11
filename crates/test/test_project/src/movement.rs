@@ -1,14 +1,15 @@
 use core_components::transform::{Transform};
-use ecs::{component::Component, query::Query};
+use ecs::{component::Component, query::Query, ressource::Res};
+use engine::application::DeltaTimeS;
 use glam::Vec3;
 
 
 pub struct Velocity (pub Vec3);
 impl Component for Velocity {}
 
-pub fn move_system(query: Query<(&Velocity, &mut Transform)>){
+pub fn move_system(query: Query<(&Velocity, &mut Transform)>, dt: Res<DeltaTimeS>){
     for (velocity, mut transform) in query.into_iter(){
-        transform.position += velocity.0;
+        transform.position += velocity.0 * dt.0;
     }
 }
 

@@ -1,5 +1,6 @@
 use core_components::transform::Transform;
 use ecs::{component::Component, query::Query, ressource::Res};
+use engine::application::DeltaTimeS;
 use glam::Vec3;
 
 use window::{glfw::Key, input::InputManager};
@@ -11,7 +12,7 @@ pub struct CameraMovementComponent {
 }
 impl Component for CameraMovementComponent {}
 
-pub fn move_camera_system(query: Query<(&mut Transform, &CameraMovementComponent)>, input: Res<InputManager>) {
+pub fn move_camera_system(query: Query<(&mut Transform, &CameraMovementComponent)>, input: Res<InputManager>, dt: Res<DeltaTimeS>) {
     for (mut transform, movement) in query.into_iter() {
     
         let yaw = input.mouse_delta.0 as f32 * movement.mouse_sensitivity;
@@ -61,7 +62,7 @@ pub fn move_camera_system(query: Query<(&mut Transform, &CameraMovementComponent
         }
 
         if direction != Vec3::ZERO {
-            transform.position += direction.normalize() * speed;
+            transform.position += direction.normalize() * speed * dt.0;
         }
     }
 }
