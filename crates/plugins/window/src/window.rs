@@ -1,6 +1,6 @@
-use ecs::{command::Command, event::{Event, EventWriter}, ressource::{ResMut, Ressource}};
+use ecs::{command::Command, event::{Event, EventWriter}, ressource::{ResMut, Ressource}, system::SystemParam, world::World};
 use engine::{app_command::StopAppCommand, plugin::Plugin};
-use glfw::{Glfw, GlfwReceiver, PWindow};
+use glfw::{Context, Glfw, GlfwReceiver, PWindow};
 
 use crate::input::{InputManager, reset_mouse_delta, update_input_manager};
 
@@ -35,15 +35,26 @@ fn window_update(mut glfw: ResMut<GLFWRes> , window: ResMut<GLFWWindowRes>, even
 
 impl Plugin for WindowPlugin {
     fn init<'a, 'b>(&self, context:engine::plugin::PluginContext<'a, 'b>) {
-        println!("creating window");
-        let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
+        let glfw = glfw::init(glfw::fail_on_errors).unwrap();
 
-        // TODO: this should not be here
-        glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
-        glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
 
-        let (mut window, events) = glfw.create_window(1000, 800, "Hello this is window", glfw::WindowMode::Windowed)
+        context.application.world
+            .add_ressource(GLFWRes ( glfw ));
+    }
+
+    fn uninit<'a, 'b>(&self, _context:engine::plugin::PluginContext<'a, 'b>) {
+        
+    }
+}
+
+impl WindowPlugin {
+    pub fn create_window(world: &mut World){
+        let mut glfw = ResMut::<GLFWRes>::retrieve_no_local(world).expect("Couldn't retrieve glfw");
+
+        let (mut window, events) = glfw.0.create_window(1000, 800, "Hello this is window", glfw::WindowMode::Windowed)
             .expect("Failed to create GLFW window.");
+
+        window.make_current();
 
         window.set_framebuffer_size_polling(true);
 
@@ -52,18 +63,15 @@ impl Plugin for WindowPlugin {
         window.set_cursor_pos_polling(true);
         window.set_scroll_polling(true);
 
-        context.application.world.add_ressource(GLFWWindowRes( window ))
+        drop(glfw);
+
+        world
+            .add_ressource(GLFWWindowRes( window ))
             .add_ressource(GLFWEventRes ( events ))
-            .add_ressource(GLFWRes ( glfw ))
             .add_ressource(InputManager::default())
             .add_event::<EcsWindowEvent>()
             .add_system(window_update)
             .add_system(reset_mouse_delta)
             .add_system(update_input_manager);
     }
-
-    fn uninit<'a, 'b>(&self, _context:engine::plugin::PluginContext<'a, 'b>) {
-        
-    }
 }
-

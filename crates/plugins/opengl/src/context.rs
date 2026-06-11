@@ -1,8 +1,7 @@
 use ecs::{event::EventReader, ressource::{Res, ResMut, Ressource}, system::SystemParam};
 use engine::plugin::Plugin;
 use glow::{Context, HasContext};
-use window::{glfw::WindowEvent, window::{GLFWRes, GLFWWindowRes}};
-use window::glfw::Context as GlfwContext;
+use window::{glfw::{self, WindowEvent}, window::{GLFWRes, GLFWWindowRes, WindowPlugin}};
 
 use crate::graphics_ressources::GraphicsRessourceManager;
 
@@ -25,11 +24,16 @@ fn resize_viewport(mut events: EventReader<window::window::EcsWindowEvent>, gl: 
 
 impl Plugin for OpenGlPlugin {
     fn init<'a, 'b>(&self, context:engine::plugin::PluginContext<'a, 'b>) {
-        let glfw = ResMut::<GLFWRes>::retrieve_no_local(&context.application.world).expect("GLFW window not loaded, cannot load glow");
+        let mut glfw = ResMut::<GLFWRes>::retrieve_no_local(&context.application.world).expect("GLFW window not loaded, cannot load glow");
+
+        glfw.0.window_hint(glfw::WindowHint::ContextVersion(3, 3));
+        glfw.0.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
+
+        drop(glfw);
+
+        WindowPlugin::create_window(&mut context.application.world);
 
         let mut window = ResMut::<GLFWWindowRes>::retrieve_no_local(&context.application.world).expect("GLFW window not loaded, cannot load glow");
-
-        println!("{}", window.0.is_current());
 
         let gl = unsafe {
             glow::Context::from_loader_function(|s| window.0.get_proc_address(s).map_or(std::ptr::null(), |p| p as *const _))
@@ -40,7 +44,6 @@ impl Plugin for OpenGlPlugin {
             gl.viewport(0, 0, size.0, size.1);
         }
 
-        drop(glfw);
         drop(window);
 
         context.application.world
