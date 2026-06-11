@@ -35,6 +35,9 @@ pub fn move_camera_system(query: Query<(&mut Transform, &CameraMovementComponent
         let up = transform.rotation.mul_vec3(Vec3::new(0., 1., 0.));
 
         let mut direction = Vec3::ZERO;
+
+        let mut speed = movement.speed;
+
         if input.pressed_keys.contains(&Key::W) {
             direction += forward;
         }
@@ -50,12 +53,15 @@ pub fn move_camera_system(query: Query<(&mut Transform, &CameraMovementComponent
         if input.pressed_keys.contains( &Key::Space ) {
             direction += up;
         }
-        if input.pressed_keys.contains( &Key::LeftShift ) {
+        if input.pressed_keys.contains( &Key::LeftControl ) {
             direction -= up;
+        }
+        if input.pressed_keys.contains(&Key::LeftShift){
+            speed *= 2.0;
         }
 
         if direction != Vec3::ZERO {
-            transform.position += direction.normalize() * movement.speed;
+            transform.position += direction.normalize() * speed;
         }
     }
 }

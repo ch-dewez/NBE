@@ -1,9 +1,9 @@
-use glow::{HasContext, NativeProgram};
+use glow::{HasContext};
 
 use crate::{CAMERA_BIND_INDEX, CAMERA_BIND_NAME, MATERIAL_BIND_INDEX, MATERIAL_BIND_NAME, MODEL_BIND_INDEX, MODEL_BIND_NAME, context::OpenGlContext};
 
 
-pub struct Program (pub NativeProgram);
+pub struct Program (pub glow::Program);
 
 impl Program {
     pub fn new(vertex_shader_source: &str, fragment_shader_source:&str, gl: &OpenGlContext) -> Self{
@@ -56,5 +56,29 @@ impl Program {
     pub fn bind(&self, gl: &OpenGlContext){
         unsafe { gl.0.use_program(Some(self.0)) } ;
 
+    }
+
+    pub fn set_bool(&self, gl:&OpenGlContext, name: &str, value: bool){
+        unsafe {
+            gl.0.uniform_1_i32(gl.0.get_uniform_location(self.0, name).as_ref(), value as i32);
+        }
+    }
+
+    pub fn set_int(&self, gl:&OpenGlContext, name: &str, value: i32){
+        unsafe {
+            gl.0.uniform_1_i32(gl.0.get_uniform_location(self.0, name).as_ref(), value);
+        }
+    }
+
+    pub fn set_float(&self, gl:&OpenGlContext, name: &str, value: f32){
+        unsafe {
+            gl.0.uniform_1_f32(gl.0.get_uniform_location(self.0, name).as_ref(), value);
+        }
+    }
+
+    pub fn set_3_float(&self, gl:&OpenGlContext, name: &str, value1: f32, value2: f32, value3: f32){
+        unsafe {
+            gl.0.uniform_3_f32(gl.0.get_uniform_location(self.0, name).as_ref(), value1, value2, value3);
+        }
     }
 }

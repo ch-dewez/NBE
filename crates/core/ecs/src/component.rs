@@ -1,5 +1,7 @@
 use std::{any::TypeId, cell::RefCell};
 
+use macro_utils::repeat_macro_with_argument;
+
 use crate::{
     archetype::{AccessComponentError, AddSignatureError, Archetype, ArchetypeSignature, RemoveSignatureError},
     component_storage::ComponentStorageErased,

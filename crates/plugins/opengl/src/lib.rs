@@ -15,5 +15,6 @@ pub mod context;
 pub mod mesh;
 pub mod program;
 pub mod material;
+pub mod texture;
 pub mod uniform_buffer;
 pub mod graphics_ressources;

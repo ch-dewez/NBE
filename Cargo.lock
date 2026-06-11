@@ -368,6 +368,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 name = "ecs"
 version = "0.1.0"
 dependencies = [
+ "macro_utils",
  "thiserror",
 ]
 
@@ -727,6 +728,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "macro_utils"
+version = "0.1.0"
+
+[[package]]
 name = "maybe-rayon"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -884,6 +889,9 @@ dependencies = [
  "engine",
  "glam",
  "glow",
+ "image",
+ "macro_utils",
+ "thiserror",
  "window",
 ]
 

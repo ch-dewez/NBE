@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+thiserror.workspace = true
 
 engine.workspace = true
 ecs.workspace = true
 window.workspace = true
+macro_utils.workspace = true
 
 glam.workspace = true
 
 glow = "0.17.0"
+image = "0.25.10"

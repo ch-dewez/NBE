@@ -2,8 +2,9 @@ use core::slice;
 use std::rc::Rc;
 
 use ecs::component::Component;
-use glam::Vec3;
-use glow::{HasContext, NativeBuffer, NativeVertexArray};
+use glam::{Vec2, Vec3};
+use glow::HasContext ;
+use macro_utils::repeat_macro_with_argument_without_0;
 
 use crate::context::OpenGlContext;
 #[derive(PartialEq, Eq)]
@@ -16,22 +17,100 @@ enum MeshStoredLocation {
 pub struct Mesh {
     nb_indices: u32,
 
-    vertex_data: Option<Box<[Vec3]>>,
+    vertex_data: Option<Box<[u8]>>,
     index_data: Option<Box<[u32]>>,
     
     stored_location: MeshStoredLocation,
 
-    vbo: Option<NativeBuffer>,
-    vao: Option<NativeVertexArray>,
-    ebo: Option<NativeBuffer>,
+    vbo: Option<glow::Buffer>,
+    vao: Option<glow::VertexArray>,
+    ebo: Option<glow::Buffer>,
 }
 
+pub trait VertexAttribute{
+    fn get_nb_component() -> i32;
+    fn get_data_type() -> u32;
+}
+
+impl VertexAttribute for Vec3{
+    fn get_data_type() -> u32 {
+        glow::FLOAT
+    }
+    fn get_nb_component() -> i32 {
+        3
+    }
+}
+impl VertexAttribute for Vec2{
+    fn get_data_type() -> u32 {
+        glow::FLOAT
+    }
+    fn get_nb_component() -> i32 {
+        2
+    }
+}
+impl VertexAttribute for f32{
+    fn get_data_type() -> u32 {
+        glow::FLOAT
+    }
+    fn get_nb_component() -> i32 {
+        1
+    }
+}
+impl VertexAttribute for u32{
+    fn get_data_type() -> u32 {
+        glow::UNSIGNED_INT
+    }
+    fn get_nb_component() -> i32 {
+        1
+    }
+}
+
+pub trait VertexAttributeTupple {
+    fn set_attribute(gl: &OpenGlContext);
+}
+
+macro_rules! impl_vertex_attribute_tupple {
+    ($($params:ident),*) => {
+        #[allow(unused_parens)]
+        #[allow(unused_assignments)]
+impl<$($params: VertexAttribute),*> VertexAttributeTupple for ($($params),*){
+    fn set_attribute(gl: &OpenGlContext){
+        let stride: i32 = (0 $(+ size_of::<$params>())*) as i32;
+        let mut current_offset = 0;
+        let mut current_index = 0;
+
+        $(
+        unsafe {
+            gl.0.vertex_attrib_pointer_f32(current_index, $params::get_nb_component(), $params::get_data_type(), false, stride, current_offset);
+            gl.0.enable_vertex_attrib_array(current_index);
+
+            current_index += 1;
+            current_offset += size_of::<$params>() as i32;
+        }
+
+        )*
+    }
+}
+    };
+}
+
+// 12 seems enough
+repeat_macro_with_argument_without_0!(impl_vertex_attribute_tupple, 12);
+
 impl Mesh {
-    pub fn new(vertex: Box<[Vec3]>, index: Box<[u32]>) -> Self{
+    pub fn new<T: VertexAttributeTupple>(vertex: Box<[T]>, index: Box<[u32]>) -> Self{
+        let byte_len = size_of_val(vertex.as_ref());
+        let slice = Box::into_raw(vertex) as *const u8;
+        let vertex_box: Box<[u8]>;
+        unsafe {
+            let byte_buffer: &[u8] = slice::from_raw_parts(slice, byte_len);
+            vertex_box = Box::from(byte_buffer);
+        }
+
         Self{
             nb_indices: index.len() as u32,
 
-            vertex_data: Some(vertex),
+            vertex_data: Some(vertex_box),
             index_data: Some(index),
 
             stored_location: MeshStoredLocation::Cpu,
@@ -50,7 +129,7 @@ impl Mesh {
         self.stored_location = MeshStoredLocation::Gpu;
     }
 
-    pub fn copy_to_gpu(&mut self, gl: &OpenGlContext){
+    pub fn copy_to_gpu<T: VertexAttributeTupple>(&mut self, gl: &OpenGlContext){
         assert!(self.stored_location == MeshStoredLocation::Cpu);
 
         // BIND VAO
@@ -66,8 +145,8 @@ impl Mesh {
                 .vertex_data
                 .as_ref()
                 .expect("Copy to gpu but not stored on cpu"));
-            let ptr = slice.as_ptr() as *const u8; 
-            let byte_len = slice.len() * core::mem::size_of::<Vec3>();
+            let ptr = slice.as_ptr(); 
+            let byte_len = size_of_val(slice);
 
             let byte_buffer = unsafe {slice::from_raw_parts(ptr, byte_len)};
 
@@ -78,11 +157,7 @@ impl Mesh {
 
         {
             // Vertex Attributes
-            // this gl implement will force the mesh data to be at 0 location
-            unsafe {
-                gl.0.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 0, 0);
-                gl.0.enable_vertex_attrib_array(0);
-            };
+            T::set_attribute(gl);
         }
 
         {
@@ -95,7 +170,7 @@ impl Mesh {
                 .as_ref()
                 .expect("Copy to gpu but not stored on cpu"));
             let ptr = slice.as_ptr() as *const u8; 
-            let byte_len = slice.len() * core::mem::size_of::<u32>();
+            let byte_len = size_of_val(slice);
 
             let byte_buffer = unsafe {slice::from_raw_parts(ptr, byte_len)};
 
@@ -111,8 +186,8 @@ impl Mesh {
         self.stored_location = MeshStoredLocation::Both;
     }
 
-    pub fn move_to_gpu(&mut self, gl: &OpenGlContext){
-        self.copy_to_gpu(gl);
+    pub fn move_to_gpu<T: VertexAttributeTupple>(&mut self, gl: &OpenGlContext){
+        self.copy_to_gpu::<T>(gl);
         self.delete_from_cpu();
     }
 

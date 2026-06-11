@@ -1,13 +1,14 @@
 use core::slice;
-use std::cmp::max;
+use std::{cmp::max, sync::OnceLock };
 
 use glow::{HasContext, NativeBuffer};
 
 use crate::context::OpenGlContext;
 
 pub struct UniformBuffer {
-    buffer: NativeBuffer,
+    buffer: glow::Buffer,
     bind_index: u32,
+    usage : u32
 }
 
 impl UniformBuffer {
@@ -21,6 +22,7 @@ impl UniformBuffer {
             Self {
                 buffer,
                 bind_index,
+                usage
             }
         }
     }
@@ -33,7 +35,7 @@ impl UniformBuffer {
 
         unsafe {
             gl.0.bind_buffer(glow::UNIFORM_BUFFER, Some(self.buffer));
-            gl.0.buffer_data_u8_slice(glow::UNIFORM_BUFFER, byte_buffer, glow::STATIC_DRAW)
+            gl.0.buffer_data_u8_slice(glow::UNIFORM_BUFFER, byte_buffer, self.usage)
         }
     }
 
@@ -56,13 +58,28 @@ pub struct GrowableUniformBuffer {
     free_ids: Vec<usize>
 }
 
+static UNIFORM_ALIGNMENT: OnceLock<usize> =  OnceLock::new();
+
+fn calculate_aligned_size(gl: &OpenGlContext, size:usize) -> usize {
+    let alignment = UNIFORM_ALIGNMENT.get_or_init(||{
+        unsafe{
+            gl.0.get_parameter_i32(glow::UNIFORM_BUFFER_OFFSET_ALIGNMENT) as usize
+        }
+    });
+
+    size + (alignment - (size % alignment))
+
+}
+
 impl GrowableUniformBuffer{
     pub fn new(gl: &OpenGlContext, bind_index:u32, capacity: usize, size_of_element: usize) -> Self{
+        let size = calculate_aligned_size(gl, size_of_element);
+
         unsafe {
             let buffer = gl.0.create_buffer().expect("Couldn't create buffer");
             gl.0.bind_buffer(glow::UNIFORM_BUFFER, Some(buffer));
 
-            gl.0.buffer_data_size(glow::UNIFORM_BUFFER, (capacity * size_of_element) as i32, glow::DYNAMIC_DRAW);
+            gl.0.buffer_data_size(glow::UNIFORM_BUFFER, (capacity * size) as i32, glow::DYNAMIC_DRAW);
 
             Self {
                 buffer,
@@ -70,7 +87,7 @@ impl GrowableUniformBuffer{
 
                 len: 0,
                 capacity,
-                size_of_element,
+                size_of_element: size,
 
                 free_ids: Default::default()
             }

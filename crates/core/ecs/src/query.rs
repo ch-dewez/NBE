@@ -1,3 +1,5 @@
+use macro_utils::{repeat_macro_with_argument, repeat_macro_with_argument_without_0};
+
 use crate::{
     archetype::{AccessComponentError, Archetype, ArchetypeId, ArchetypeRow}, component::Component, entity::Entity, system::{SystemDependency, SystemParam}, system_local::LocalStorage, world::World
 };

@@ -12,4 +12,5 @@ glam.workspace = true
 core_components.workspace = true
 window.workspace = true
 
+[build-dependencies]
 assets_management.workspace = true
