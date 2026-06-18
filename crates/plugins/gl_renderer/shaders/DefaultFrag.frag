@@ -1,6 +1,5 @@
 #version 330 core
 
-in vec3 ourColor;
 out vec4 FragColor;
 
 layout(std140) uniform Material {
@@ -9,5 +8,5 @@ layout(std140) uniform Material {
 
 void main()
 {
-    FragColor = vec4(ourColor.x, ourColor.y, ourColor.z, 1.0);
+    FragColor = color;
 } 

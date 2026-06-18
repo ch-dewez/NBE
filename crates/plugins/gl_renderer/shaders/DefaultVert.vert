@@ -1,6 +1,5 @@
 #version 330 core
 layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aColor;
 
 layout(std140) uniform Camera {
     mat4 view;
@@ -11,13 +10,10 @@ layout(std140) uniform Model {
     mat4 modelMatrix;
 };
 
-out vec3 ourColor;
-
 void main()
 {
     vec4 position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
     vec4 out_pos =  projection * view * modelMatrix * position;
-    ourColor = aColor;
 
     gl_Position = out_pos;
 }
