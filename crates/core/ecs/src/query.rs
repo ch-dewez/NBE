@@ -1,9 +1,18 @@
 use macro_utils::{repeat_macro_with_argument, repeat_macro_with_argument_without_0};
 
 use crate::{
-    archetype::{AccessComponentError, Archetype, ArchetypeId, ArchetypeRow}, component::Component, entity::Entity, system::{SystemDependency, SystemParam}, system_local::LocalStorage, world::World
+    archetype::{AccessComponentError, Archetype, ArchetypeId, ArchetypeRow},
+    component::Component,
+    entity::Entity,
+    system::{SystemDependency, SystemParam},
+    system_local::LocalStorage,
+    world::World,
 };
-use std::{cell::{Ref, RefMut}, collections::HashSet, marker::PhantomData};
+use std::{
+    cell::{Ref, RefMut},
+    collections::HashSet,
+    marker::PhantomData,
+};
 
 pub struct Query<'a, T: QueryData, F: QueryFilter = ()> {
     pub archetypes: Vec<&'a Archetype>,
@@ -11,17 +20,16 @@ pub struct Query<'a, T: QueryData, F: QueryFilter = ()> {
 }
 
 impl<'a, T: QueryData, F: QueryFilter> Query<'a, T, F> {
-    pub fn count(&self) -> usize{
-        self
-            .archetypes
+    pub fn count(&self) -> usize {
+        self.archetypes
             .iter()
             .map(|archetype| archetype.get_row_count())
             .sum()
     }
 }
 
-pub struct QueryCache{
-    pub archetypes: Vec<ArchetypeId>
+pub struct QueryCache {
+    pub archetypes: Vec<ArchetypeId>,
 }
 
 #[allow(dead_code)]
@@ -34,15 +42,15 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
     type Item<'w, 'l> = Query<'w, T, F>;
     type Cache = QueryCache;
 
-    fn init(_world:&World, _local: &mut LocalStorage) {}
+    fn init(_world: &World, _local: &mut LocalStorage) {}
 
-    fn retrieve<'w, 'l>(world: &'w World, _local:&'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
+    fn retrieve<'w, 'l>(world: &'w World, _local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
         let mut archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
 
         T::filter(&mut archetypes);
         F::filter(&mut archetypes);
 
-        if archetypes.is_empty(){
+        if archetypes.is_empty() {
             return None;
         }
 
@@ -53,17 +61,19 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
     }
 
     fn cache(world: &World, _local: &LocalStorage) -> Option<Self::Cache> {
-        let mut archetypes : Vec<ArchetypeId> = (0..world.archetypes.len()).collect();
+        let mut archetypes: Vec<ArchetypeId> = (0..world.archetypes.len()).collect();
 
         T::filter_id(&mut archetypes, world);
         F::filter_id(&mut archetypes, world);
 
-        Some(QueryCache{
-            archetypes
-        })
+        Some(QueryCache { archetypes })
     }
 
-    fn from_cache<'w, 'l>(cache: &Self::Cache, world: &'w World, _local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
+    fn from_cache<'w, 'l>(
+        cache: &Self::Cache,
+        world: &'w World,
+        _local: &'l LocalStorage,
+    ) -> Option<Self::Item<'w, 'l>> {
         let archetypes: Vec<&Archetype> = world.get_all_archetypes().iter().collect();
         Some(Query {
             archetypes: cache.archetypes.iter().map(|id| archetypes[*id]).collect(),
@@ -71,29 +81,34 @@ impl<'a, T: QueryData, F: QueryFilter> SystemParam for Query<'a, T, F> {
         })
     }
 
-
     fn get_dependencies(world: &World, local: &LocalStorage) -> HashSet<SystemDependency> {
         let cache = Self::cache(world, local);
-        if cache.is_none(){
+        if cache.is_none() {
             return HashSet::new();
         }
         let cache = cache.unwrap();
         Self::get_dependencies_from_cache(world, &cache, local)
     }
 
-    fn get_dependencies_from_cache(_world: &World, cache: &Self::Cache, _local: &LocalStorage) -> HashSet<SystemDependency>{
+    fn get_dependencies_from_cache(
+        _world: &World,
+        cache: &Self::Cache,
+        _local: &LocalStorage,
+    ) -> HashSet<SystemDependency> {
         cache
             .archetypes
             .iter()
             .map(|id| SystemDependency::Archetype(*id))
             .collect()
-
     }
 }
 
 impl<'a, T: QueryData, F: QueryFilter> Clone for Query<'a, T, F> {
     fn clone(&self) -> Self {
-        Self { archetypes: self.archetypes.clone(), _phantom_data: Default::default() }
+        Self {
+            archetypes: self.archetypes.clone(),
+            _phantom_data: Default::default(),
+        }
     }
 }
 
@@ -143,7 +158,7 @@ impl<'a, T: QueryData, F: QueryFilter> Iterator for QueryIter<'a, T, F> {
             Err(err) => {
                 println!("Err {}", err);
                 None
-            },
+            }
         };
 
         self.row_index += 1;
@@ -156,7 +171,7 @@ pub trait QueryData {
 
     fn filter(archetypes: &mut Vec<&Archetype>);
     fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World);
-    
+
     #[allow(private_interfaces)]
     fn get_dependency() -> QueryDependency;
 
@@ -237,11 +252,10 @@ macro_rules! impl_query_tupple {
 }
 repeat_macro_with_argument!(impl_query_tupple, 32);
 
-
 pub trait QueryArgument {
     type Item<'w>;
 
-    fn filter(archetypes: &mut Vec<& Archetype>);
+    fn filter(archetypes: &mut Vec<&Archetype>);
     fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World);
     fn retrieve<'w>(
         archetype: &'w Archetype,
@@ -251,7 +265,7 @@ pub trait QueryArgument {
 impl<T: Component> QueryArgument for &T {
     type Item<'w> = Ref<'w, T>;
 
-    fn filter(archetypes: &mut Vec<& Archetype>) {
+    fn filter(archetypes: &mut Vec<&Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
     }
     fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
@@ -267,7 +281,7 @@ impl<T: Component> QueryArgument for &T {
 impl<T: Component> QueryArgument for &mut T {
     type Item<'w> = RefMut<'w, T>;
 
-    fn filter(archetypes: &mut Vec<& Archetype>) {
+    fn filter(archetypes: &mut Vec<&Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
     }
     fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
@@ -283,7 +297,7 @@ impl<T: Component> QueryArgument for &mut T {
 }
 
 pub struct EntityArgument;
-impl QueryArgument for EntityArgument{
+impl QueryArgument for EntityArgument {
     type Item<'w> = Entity;
     fn filter(_archetypes: &mut Vec<&Archetype>) {}
     fn filter_id(_archetypes: &mut Vec<ArchetypeId>, _world: &World) {}
@@ -292,7 +306,9 @@ impl QueryArgument for EntityArgument{
         archetype: &'w Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError> {
-        Ok(archetype.get_entity(row).expect("Row out of bounds in system iteration"))
+        Ok(archetype
+            .get_entity(row)
+            .expect("Row out of bounds in system iteration"))
     }
 }
 
@@ -319,6 +335,6 @@ impl<T: Component> QueryFilterArgument for Without<T> {
         archetypes.retain(|x| !x.signature.contains::<T>());
     }
     fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
-        archetypes.retain(|id| world.archetypes[*id].signature.contains::<T>());
+        archetypes.retain(|id| !world.archetypes[*id].signature.contains::<T>());
     }
 }
