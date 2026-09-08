@@ -1,6 +1,7 @@
 use engine::application::Application;
 use gl_renderer::renderer::GlRenderer;
 use opengl::context::OpenGlPlugin;
+use physics::plugin::PhysicsPlugin;
 use test_project::plugin::GamePlugin;
 use window::window::WindowPlugin;
 
@@ -9,6 +10,7 @@ fn main() {
         .add_plugin::<WindowPlugin>()
         .add_plugin::<OpenGlPlugin>()
         .add_plugin::<GlRenderer>()
+        .add_plugin::<PhysicsPlugin>()
         .add_plugin::<GamePlugin>()
         .run();
 }

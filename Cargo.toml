@@ -1,21 +1,42 @@
 [workspace]
-members = ["crates/core/engine", "crates/executors/editor_executor", "crates/plugins/editor", "crates/plugins/physics", "crates/plugins/renderer", "crates/project_manager", "crates/test/test_project", "crates/test/test_executor", "crates/executors/game_executor", "crates/plugin_templates/physics_template", "crates/plugin_templates/renderer_template", "crates/test/test_ecs", "crates/core/ecs", "crates/plugins/window", "crates/plugins/opengl", "crates/plugins/gl_renderer", "crates/build_tools/assets_management", "crates/plugins/core_components", "crates/core/macro_utils"]
+members = [
+  "crates/core/engine",
+  "crates/executors/editor_executor",
+  "crates/plugins/editor",
+  "crates/plugins/physics",
+  "crates/plugins/renderer",
+  "crates/project_manager",
+  "crates/test/test_project",
+  "crates/test/test_executor",
+  "crates/executors/game_executor",
+  "crates/plugin_templates/physics_template",
+  "crates/plugin_templates/renderer_template",
+  "crates/test/test_ecs",
+  "crates/core/ecs",
+  "crates/plugins/window",
+  "crates/plugins/opengl",
+  "crates/plugins/gl_renderer",
+  "crates/build_tools/assets_management",
+  "crates/plugins/core_components",
+  "crates/core/macro_utils",
+]
 resolver = "3"
 
 [workspace.dependencies]
 thiserror = "2.0.18"
 glam = "0.33.1"
 
-engine = {path = "crates/core/engine"}
-ecs = { path = "crates/core/ecs"}
-macro_utils = {path = "crates/core/macro_utils"}
+engine = { path = "crates/core/engine" }
+ecs = { path = "crates/core/ecs" }
+macro_utils = { path = "crates/core/macro_utils" }
 
-window = { path = "crates/plugins/window"}
-opengl = { path = "crates/plugins/opengl"}
-gl_renderer = { path = "crates/plugins/gl_renderer"}
-core_components = { path = "crates/plugins/core_components"}
+window = { path = "crates/plugins/window" }
+opengl = { path = "crates/plugins/opengl" }
+gl_renderer = { path = "crates/plugins/gl_renderer" }
+core_components = { path = "crates/plugins/core_components" }
+physics = { path = "crates/plugins/physics" }
 
-assets_management = {path = "crates/build_tools/assets_management"}
+assets_management = { path = "crates/build_tools/assets_management" }
 
-physics_template = { path = "crates/plugin_templates/physics_template"}
-renderer_template = { path = "crates/plugin_templates/renderer_template"}
+physics_template = { path = "crates/plugin_templates/physics_template" }
+renderer_template = { path = "crates/plugin_templates/renderer_template" }

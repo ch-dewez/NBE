@@ -4,13 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-engine = {workspace = true}
-ecs = {workspace = true}
-opengl = {workspace = true}
+engine = { workspace = true }
+ecs = { workspace = true }
+opengl = { workspace = true }
 gl_renderer.workspace = true
 glam.workspace = true
 core_components.workspace = true
 window.workspace = true
+physics.workspace = true
 
 [build-dependencies]
 assets_management.workspace = true

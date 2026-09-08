@@ -910,6 +910,12 @@ checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
 [[package]]
 name = "physics"
 version = "0.1.0"
+dependencies = [
+ "core_components",
+ "ecs",
+ "engine",
+ "glam",
+]
 
 [[package]]
 name = "physics_template"
@@ -1325,6 +1331,7 @@ dependencies = [
  "engine",
  "gl_renderer",
  "opengl",
+ "physics",
  "test_project",
  "window",
 ]
@@ -1340,6 +1347,7 @@ dependencies = [
  "gl_renderer",
  "glam",
  "opengl",
+ "physics",
  "window",
 ]
 

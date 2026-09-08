@@ -8,5 +8,6 @@ engine.workspace = true
 window.workspace = true
 opengl.workspace = true
 gl_renderer.workspace = true
+physics.workspace = true
 
-test_project = {path="../test_project"}
+test_project = { path = "../test_project" }
