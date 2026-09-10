@@ -1,7 +1,7 @@
 //
 //
 //
-// THIS WAS AI GENERATED
+// THIS FILE WAS AI GENERATED
 //
 // I'm not yet familiar with this type of macros (modifying the enum inside) but I understand how it works
 // Maybe this should be done in a derive macro but that requires proc macro which I'm even less

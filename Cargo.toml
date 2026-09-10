@@ -23,9 +23,12 @@ members = [
 resolver = "3"
 
 [workspace.dependencies]
+# External
 thiserror = "2.0.18"
 glam = "0.33.1"
+arrayvec = "0.7.8"
 
+# Internal
 engine = { path = "crates/core/engine" }
 ecs = { path = "crates/core/ecs" }
 macro_utils = { path = "crates/core/macro_utils" }

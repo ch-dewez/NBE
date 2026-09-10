@@ -12,9 +12,9 @@ pub const MATERIAL_BIND_INDEX: u32 = 2;
 pub const LIGHTNING_BIND_INDEX: u32 = 3;
 
 pub mod context;
+pub mod graphics_ressources;
+pub mod material;
 pub mod mesh;
 pub mod program;
-pub mod material;
 pub mod texture;
 pub mod uniform_buffer;
-pub mod graphics_ressources;

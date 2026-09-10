@@ -1,12 +1,93 @@
-use std::mem::MaybeUninit;
-
+use arrayvec::ArrayVec;
 use core_components::transform::Transform;
 use ecs::component::Component;
-use glam::{Quat, Vec3};
+use glam::Vec3;
 
-use crate::collision::sat::{
-    Axis, AxisType, SATable, SATableForEachAxesClosure, SATableForEachVecClosure,
-};
+pub(crate) type FaceIndex = usize;
+pub(crate) type EdgeIndex = usize;
+
+#[derive(Debug, Clone)]
+pub(crate) struct Face {
+    pub normal: Vec3,
+    pub vertices: ArrayVec<Vec3, 4>,
+}
+
+impl Face {
+    pub fn get_inward_planes(&self) -> ArrayVec<Plane, 4> {
+        let len = self.vertices.len();
+        (0..len)
+            .map(|i| (self.vertices[i], self.vertices[(i + 1) % len]))
+            .map(|(curr, next)| {
+                let inward_normal = self.normal.cross(next - curr);
+                Plane::from_point_and_normal(curr, inward_normal)
+            })
+            .collect()
+    }
+
+    pub fn distance_to_point(&self, point: Vec3) -> f32 {
+        self.normal.dot(point - self.vertices[0])
+    }
+}
+
+pub(crate) struct Plane {
+    pub normal: Vec3,
+    pub d: f32,
+}
+
+impl Plane {
+    pub fn from_point_and_normal(point: Vec3, normal: Vec3) -> Self {
+        Self {
+            normal,
+            d: -normal.dot(point),
+        }
+    }
+
+    pub fn distance_to_point(&self, point: Vec3) -> f32 {
+        self.normal.dot(point) + self.d
+    }
+}
+
+pub(crate) struct Edge {
+    a: Vec3,
+    b: Vec3,
+
+    // invariant, direction = b - a
+    direction: Vec3,
+}
+
+impl Edge {
+    pub fn from_two_points(a: Vec3, b: Vec3) -> Self {
+        Edge {
+            a,
+            b,
+
+            direction: b - a,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn from_point_and_direction(a: Vec3, direction: Vec3) -> Self {
+        Edge {
+            a,
+            b: a + direction,
+
+            direction,
+        }
+    }
+
+    pub fn get_a(&self) -> Vec3 {
+        self.a
+    }
+
+    #[allow(dead_code)]
+    pub fn get_b(&self) -> Vec3 {
+        self.b
+    }
+
+    pub fn get_direction(&self) -> Vec3 {
+        self.direction
+    }
+}
 
 #[derive(Clone)]
 pub enum Collider {
@@ -26,6 +107,8 @@ pub struct CubeCollider {
 
 impl CubeCollider {
     pub(crate) fn get_world_space(&self, transform: &Transform) -> CubeCollider {
+        // FUNCTION (math) MADE BY AI
+
         // 1. Scale the local offset by parent scale
         let scaled_offset = self.transform.position * transform.scale;
 
@@ -48,94 +131,6 @@ impl CubeCollider {
                 scale: world_scale,
             },
         }
-    }
-}
-
-impl SATable for CubeCollider {
-    fn for_all_axes<'a>(
-        &self,
-        other: &dyn SATable,
-        all_axis_closure: super::sat::SATableForEachAxesClosure<'a>,
-    ) {
-        self.for_each_faces_axes(&mut |my_axis: Vec3| {
-            // self face axis
-            if all_axis_closure(Axis {
-                axis: my_axis,
-                axis_type: AxisType::Face,
-            }) {
-                return true;
-            }
-
-            let mut should_return: bool = false;
-
-            // add edge edge axis
-            other.for_each_edges_axes(&mut |other_axis| {
-                // my_axis are face, but for a cube, face and edge axis are the same
-                let cross = my_axis.cross(other_axis);
-                if let Some(normalized_cross) = cross.try_normalize() {
-                    if all_axis_closure(Axis {
-                        axis: cross,
-                        axis_type: AxisType::Edge,
-                    }) {
-                        should_return = true;
-                        return true;
-                    }
-                }
-
-                false
-            });
-
-            if should_return { true } else { false }
-        });
-
-        // add other face axis
-        other.for_each_faces_axes(&mut |other_axis| {
-            if all_axis_closure(Axis {
-                axis: other_axis,
-                axis_type: AxisType::Face,
-            }) {
-                return true;
-            }
-
-            false
-        });
-    }
-
-    fn for_each_faces_axes<'a>(&self, closure: SATableForEachVecClosure<'a>) {
-        let rotation = self.transform.rotation.normalize();
-        let axes = [rotation * Vec3::X, rotation * Vec3::Y, rotation * Vec3::Z];
-
-        for axis in axes.iter() {
-            if closure(*axis) {
-                break;
-            }
-        }
-    }
-
-    fn for_each_edges_axes<'a>(&self, closure: SATableForEachVecClosure) {
-        // For a cube, edges axes are the same as faces axes
-        self.for_each_faces_axes(closure)
-    }
-
-    // optimized because it's cube
-    fn project_onto_axis(&self, axis: Vec3) -> (f32, f32) {
-        let center = axis.dot(self.transform.position);
-
-        let half_extents = self.transform.scale * 0.5;
-        let mut axes = [Vec3::default(); 3]; // [u_x, u_y, u_z]
-        let mut index = 0;
-        self.for_each_faces_axes(&mut |axis| {
-            axes[index] = axis;
-            index += 1;
-            false
-        });
-
-        // Calculate radius along the axis
-        let radius = half_extents.x * axis.dot(axes[0]).abs()
-            + half_extents.y * axis.dot(axes[1]).abs()
-            + half_extents.z * axis.dot(axes[2]).abs();
-
-        (center - radius, center + radius)
     }
 }
 

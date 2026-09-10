@@ -2,17 +2,17 @@ use std::cell::Ref;
 
 use core_components::transform::Transform;
 use ecs::entity::Entity;
-use glam::Vec3;
 
 use crate::{
     collision::{
         colliders::{Collider, Colliders, CubeCollider},
-        sat::{SATResult, apply_sat_and_clipping, sat},
+        collision_management::ContactManifold,
+        sat::apply_sat_and_clipping,
     },
     rigidbody::RigidBody,
 };
 
-pub type DetectedCollision = Vec<(Entity)>;
+pub type DetectedCollision = Vec<(Entity, Entity, ContactManifold)>;
 pub type EntityWithRb<'a> = (
     Entity,
     Ref<'a, Transform>,
@@ -23,13 +23,6 @@ pub type StaticEntity<'a> = (Entity, Ref<'a, Transform>, Ref<'a, Colliders>);
 
 type DetectionArg<'a, T> = (&'a Transform, &'a T);
 type DetectionResult = Option<ContactManifold>;
-
-#[derive(Default)]
-pub(crate) struct ContactManifold {
-    pub points: Vec<Vec3>,
-    pub normal: Vec3,
-    pub penetration: f32,
-}
 
 fn call_detection<'a>(
     collider1: DetectionArg<Collider>,
@@ -56,18 +49,16 @@ pub fn detect_collision(
     let all_entities_iter = rb_entities_iter.chain(static_entities_iter);
     let all_entities: Vec<_> = all_entities_iter.collect();
 
-    println!("nb entities: {}", all_entities.len());
-
-    let detected_collision: DetectedCollision = DetectedCollision::new();
+    let _detected_collision: DetectedCollision = DetectedCollision::new();
 
     for (entity1, transform1, colliders1, _rb1) in all_entities.iter() {
-        'outer: for collider1 in colliders1.colliders.iter() {
+        for collider1 in colliders1.colliders.iter() {
             for (entity2, transform2, colliders2, _rb2) in all_entities.iter() {
                 if *entity1 == *entity2 {
-                    break 'outer;
+                    continue;
                 }
                 for collider2 in colliders2.colliders.iter() {
-                    let result = call_detection((transform1, collider1), (transform2, collider2));
+                    let _result = call_detection((transform1, collider1), (transform2, collider2));
                 }
             }
         }
