@@ -9,3 +9,4 @@ glam.workspace = true
 core_components.workspace = true
 ecs.workspace = true
 arrayvec.workspace = true
+rayon.workspace = true

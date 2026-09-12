@@ -2,6 +2,7 @@ use std::cell::Ref;
 
 use core_components::transform::Transform;
 use ecs::entity::Entity;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     collision::{
@@ -9,7 +10,7 @@ use crate::{
         collision_management::ContactManifold,
         sat::apply_sat_and_clipping,
     },
-    rigidbody::RigidBody,
+    rigidbody::Velocity,
 };
 
 pub type DetectedCollision = Vec<(Entity, Entity, ContactManifold)>;
@@ -17,7 +18,7 @@ pub type EntityWithRb<'a> = (
     Entity,
     Ref<'a, Transform>,
     Ref<'a, Colliders>,
-    Ref<'a, RigidBody>,
+    Ref<'a, Velocity>,
 );
 pub type StaticEntity<'a> = (Entity, Ref<'a, Transform>, Ref<'a, Colliders>);
 
@@ -63,6 +64,26 @@ pub fn detect_collision(
             }
         }
     }
+
+    // all_entities
+    //     .par_iter()
+    //     .for_each(|(entity1, transform1, colliders1, _rb1)| {
+    //         colliders1.colliders.par_iter().for_each(|collider1| {
+    //             all_entities
+    //                 .par_iter()
+    //                 .for_each(|(entity2, transform2, colliders2, _rb2)| {
+    //                     if *entity1 != *entity2 {
+    //                     } else {
+    //                         colliders2.colliders.par_iter().for_each(|collider2| {
+    //                             let _result = call_detection(
+    //                                 (transform1, collider1),
+    //                                 (transform2, collider2),
+    //                             );
+    //                         });
+    //                     }
+    //                 });
+    //         });
+    //     });
 
     Default::default()
 

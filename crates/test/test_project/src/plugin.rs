@@ -9,14 +9,17 @@ use ecs::{
 };
 use engine::{app_command::StopAppCommand, application::DeltaTimeS, plugin::Plugin};
 use gl_renderer::{camera::Camera, default_shaders::DefaultShaders};
-use glam::{Quat, Vec2, Vec3, Vec4};
+use glam::{Mat3, Quat, Vec2, Vec3, Vec4};
 use opengl::{
     context::OpenGlContext,
     material::{Material, MaterialComponent, MaterialTemplate},
     mesh::{Mesh, MeshComponent},
     program::Program,
 };
-use physics::collision::colliders::{Colliders, CubeCollider};
+use physics::{
+    collision::colliders::{Colliders, CubeCollider},
+    rigidbody::{Velocity, get_rb_components_from_colliders},
+};
 use window::{
     glfw::WindowEvent,
     input::InputManager,
@@ -25,7 +28,7 @@ use window::{
 
 use crate::{
     camera_movement::{CameraMovementComponent, move_camera_system},
-    movement::{self, Velocity},
+    movement::{self},
 };
 
 fn quit_app(
@@ -275,21 +278,34 @@ impl Plugin for GamePlugin {
 
         {
             // CUBE
+            let transform = Transform::new(
+                Vec3::new(0.0, 1.0, -2.0),
+                //Quat::from_xyzw(0.88807, 0.32506, -0.32506, 0.0), // cube standing (more or less) on its vertex
+                Quat::IDENTITY,
+                Vec3::new(1.0, 0.1, 2.0),
+            );
+
             let mat_comp = MaterialComponent(dark_color_material.clone());
 
             let mesh_comp = MeshComponent(mesh.clone());
-            let transform = Transform::new(
-                Vec3::new(0.0, 1.0, -2.0),
-                Quat::from_xyzw(0.88807, 0.32506, -0.32506, 0.0), // cube standing (more or less) on its vertex
-                Vec3::new(1.0, 1.0, 1.0),
-            );
 
-            let move_comp = Velocity::from(Vec3::new(0.0, -1.0, 0.0));
-
-            let collider = CubeCollider::default();
+            let mut collider = CubeCollider::default();
+            collider.density = Some(4.0);
             let colliders = Colliders::from(collider);
 
-            world.spawn_entity((transform, mesh_comp, mat_comp, move_comp, colliders));
+            let inv = colliders.get_local_inv_inertia_tensor(transform.scale);
+            println!("INVERSE TENSOR: {}", inv);
+
+            let vel = Velocity {
+                linear: Vec3::ZERO,
+                angular_momentum: Vec3::new(0.5, 0.0, 0.000),
+
+                inv_inertia_tensor_local: inv,
+            };
+            //
+            //let rb_comps = get_rb_components_from_colliders(&colliders);
+
+            world.spawn_entity((transform, mesh_comp, mat_comp, colliders, vel));
         }
 
         {

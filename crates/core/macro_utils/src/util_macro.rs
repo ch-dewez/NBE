@@ -76,51 +76,79 @@ macro_rules! repeat_macro_with_argument_without_1 {
         $crate::repeat_macro_with_argument_without_1!($macro, 19);
     };
     ( $macro:ident, 21 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 20);
     };
     ( $macro:ident, 22 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 21);
     };
     ( $macro:ident, 23 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 22);
     };
     ( $macro:ident, 24 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 23);
     };
     ( $macro:ident, 25 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 24);
     };
     ( $macro:ident, 26 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 25);
     };
     ( $macro:ident, 27 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 26);
     };
     ( $macro:ident, 28 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 27);
     };
     ( $macro:ident, 29 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB, AC);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB,
+            AC
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 28);
     };
     ( $macro:ident, 30 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB, AC, AD);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB,
+            AC, AD
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 29);
     };
     ( $macro:ident, 31 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB, AC, AD, AE);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB,
+            AC, AD, AE
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 30);
     };
     ( $macro:ident, 32 ) => {
-        $macro!(A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB, AC, AD, AE, AF);
+        $macro!(
+            A, B, C, D, E, F1, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, AA, AB,
+            AC, AD, AE, AF
+        );
         $crate::repeat_macro_with_argument_without_1!($macro, 31);
     };
 }
@@ -132,7 +160,6 @@ macro_rules! repeat_macro_with_argument {
         $macro!();
     };
 }
-
 
 #[macro_export]
 macro_rules! repeat_macro_with_argument_without_0 {

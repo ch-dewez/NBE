@@ -1,5 +1,5 @@
 use ecs::component::Component;
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, Quat, Vec3};
 
 #[derive(Clone)]
 pub struct Transform {
@@ -27,8 +27,12 @@ impl Transform {
         }
     }
 
-    pub fn get_rotation_matrix(&self) -> Mat4 {
+    pub fn get_world_matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position)
+    }
+
+    pub fn get_rotation_matrix(&self) -> Mat3 {
+        Mat3::from_quat(self.rotation)
     }
 }
 

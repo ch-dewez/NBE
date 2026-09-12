@@ -10,7 +10,7 @@ use glam::Vec3;
 
 use crate::{
     collision::{colliders::Colliders, detection::detect_collision},
-    rigidbody::RigidBody,
+    rigidbody::Velocity,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -21,13 +21,13 @@ pub(crate) struct ContactPoint {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ContactManifold {
-    pub points: ArrayVec<ContactPoint, 6>,
+    pub points: ArrayVec<ContactPoint, 8>,
     pub mtv: Vec3,
 }
 
 pub fn manage_collision(
-    rb_collider: Query<(EntityArgument, &Transform, &Colliders, &RigidBody)>,
-    static_collider: Query<(EntityArgument, &Transform, &Colliders), Without<RigidBody>>,
+    rb_collider: Query<(EntityArgument, &Transform, &Colliders, &Velocity)>,
+    static_collider: Query<(EntityArgument, &Transform, &Colliders), Without<Velocity>>,
 ) {
     let entities_with_rb: Vec<_> = rb_collider.into_iter().collect();
     let static_entities: Vec<(Entity, Ref<Transform>, Ref<Colliders>)> =

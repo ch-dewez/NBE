@@ -1,7 +1,9 @@
+use std::ops::Deref;
+
 use arrayvec::ArrayVec;
 use core_components::transform::Transform;
 use ecs::component::Component;
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 
 pub(crate) type FaceIndex = usize;
 pub(crate) type EdgeIndex = usize;
@@ -18,7 +20,7 @@ impl Face {
         (0..len)
             .map(|i| (self.vertices[i], self.vertices[(i + 1) % len]))
             .map(|(curr, next)| {
-                let inward_normal = self.normal.cross(next - curr);
+                let inward_normal = self.normal.cross(next - curr).normalize_or_zero();
                 Plane::from_point_and_normal(curr, inward_normal)
             })
             .collect()
@@ -89,6 +91,19 @@ impl Edge {
     }
 }
 
+pub(crate) trait InertiaTensorGettable {
+    fn get_center_of_mass(&self, external_scale: Vec3) -> Vec3;
+    fn get_inertia_tensor_local(&self, external_scale: Vec3) -> Mat3;
+    fn get_inertia_tensor_rotation(&self, external_scale: Vec3) -> Mat3;
+    fn get_inertia_tensor_shift(&self, relative_center_of_mass: Vec3, external_scale: Vec3)
+    -> Mat3;
+    fn get_volume(&self, external_scale: Vec3) -> f32;
+    fn get_mass(&self, external_scale: Vec3) -> f32;
+}
+
+pub trait ColliderTrait: InertiaTensorGettable {}
+impl<T> ColliderTrait for T where T: InertiaTensorGettable {}
+
 #[derive(Clone)]
 pub enum Collider {
     CubeCollider(CubeCollider),
@@ -100,9 +115,18 @@ impl From<CubeCollider> for Collider {
     }
 }
 
+impl Collider {
+    pub fn as_collider_trait(&self) -> &dyn ColliderTrait {
+        match self {
+            Collider::CubeCollider(collider) => collider,
+        }
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct CubeCollider {
     pub transform: Transform, // position is offset from local origin
+    pub density: Option<f32>,
 }
 
 impl CubeCollider {
@@ -130,7 +154,57 @@ impl CubeCollider {
                 rotation: world_rotation,
                 scale: world_scale,
             },
+            density: self.density,
         }
+    }
+}
+
+impl InertiaTensorGettable for CubeCollider {
+    fn get_center_of_mass(&self, external_scale: Vec3) -> Vec3 {
+        self.transform.position * external_scale
+    }
+
+    fn get_inertia_tensor_local(&self, external_scale: Vec3) -> Mat3 {
+        let mass = self.get_mass(external_scale);
+        let effective_scale = self.transform.scale * external_scale;
+        let length_squared = effective_scale * effective_scale;
+        Mat3::from_diagonal(
+            Vec3::new(
+                length_squared.y + length_squared.z,
+                length_squared.x + length_squared.z,
+                length_squared.x + length_squared.y,
+            ) * mass
+                / 12.0,
+        )
+    }
+
+    fn get_inertia_tensor_shift(
+        &self,
+        relative_center_of_mass: Vec3,
+        external_scale: Vec3,
+    ) -> Mat3 {
+        let d = self.get_center_of_mass(external_scale) - relative_center_of_mass;
+        let d2 = d * d;
+        let m = self.get_mass(external_scale);
+
+        m * Mat3::from_cols(
+            Vec3::new(d2.y + d2.z, -d.x * d.y, -d.x * d.z),
+            Vec3::new(-d.x * d.y, d2.x + d2.z, -d.y * d.z),
+            Vec3::new(-d.x * d.z, -d.y * d.z, d2.x + d2.y),
+        )
+    }
+
+    fn get_inertia_tensor_rotation(&self, external_scale: Vec3) -> Mat3 {
+        let rotation = self.transform.get_rotation_matrix();
+        rotation * self.get_inertia_tensor_local(external_scale) * rotation.transpose()
+    }
+
+    fn get_volume(&self, external_scale: Vec3) -> f32 {
+        (self.transform.scale * external_scale).element_product()
+    }
+
+    fn get_mass(&self, external_scale: Vec3) -> f32 {
+        self.get_volume(external_scale) * self.density.unwrap_or(1.0)
     }
 }
 
@@ -164,5 +238,38 @@ where
 impl Colliders {
     pub fn add_collider(&mut self, collider: Collider) {
         self.colliders.push(collider);
+    }
+
+    pub fn get_local_inertia_tensor(&self, external_scale: Vec3) -> Mat3 {
+        let mut total_mass = 0.0;
+        let mut center_of_mass = Vec3::ZERO;
+        for collider in self.colliders.iter() {
+            let collider = collider.as_collider_trait();
+            let mass = collider.get_mass(external_scale);
+            total_mass += mass;
+            let com = collider.get_center_of_mass(external_scale);
+            center_of_mass += com * mass;
+        }
+
+        if total_mass > 0.0 {
+            center_of_mass /= total_mass;
+        }
+
+        let mut i_total: Mat3 = Mat3::ZERO;
+        for collider in self.colliders.iter() {
+            let collider = collider.as_collider_trait();
+            let i_rot = collider.get_inertia_tensor_rotation(external_scale);
+            let i_shift = collider.get_inertia_tensor_shift(center_of_mass, external_scale);
+
+            let i_world = i_rot + i_shift;
+
+            i_total += i_world;
+        }
+
+        i_total
+    }
+
+    pub fn get_local_inv_inertia_tensor(&self, external_scale: Vec3) -> Mat3 {
+        self.get_local_inertia_tensor(external_scale).inverse()
     }
 }
