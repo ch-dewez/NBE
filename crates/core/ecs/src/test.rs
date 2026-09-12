@@ -618,3 +618,70 @@ fn test_command_system() {
     let query_v_after = Query::<&Velocity>::retrieve(&world, &HashMap::new()).unwrap();
     assert_eq!(query_v_after.into_iter().count(), 0);
 }
+
+#[test]
+fn test_nested_component_tuple() {
+    let mut world = World::new();
+
+    // Spawn an entity using nested ComponentTupple: ((Position, Velocity), (Health, Name))
+    let entity = world
+        .spawn_entity((
+            (Position { x: 10.0, y: 20.0 }, Velocity { x: 1.0, y: 2.0 }),
+            (Health(100), Name("Hero".to_string())),
+        ))
+        .0;
+
+    assert_eq!(entity.id, 0);
+
+    // Verify all components were correctly initialized on the entity
+    let query = Query::<(&Position, &Velocity, &Health, &Name)>::retrieve(&world, &HashMap::new()).unwrap();
+    let mut iter = query.into_iter();
+    let (pos, vel, hp, name) = iter.next().expect("Entity should exist with all 4 components");
+    assert_eq!(*pos, Position { x: 10.0, y: 20.0 });
+    assert_eq!(*vel, Velocity { x: 1.0, y: 2.0 });
+    assert_eq!(*hp, Health(100));
+    assert_eq!(name.0, "Hero");
+    assert!(iter.next().is_none());
+}
+
+#[test]
+fn test_nested_query_tuple() {
+    let mut world = World::new();
+
+    // Spawn entity 1 with nested tuple
+    world.spawn_entity((
+        (Position { x: 1.0, y: 2.0 }, Velocity { x: 0.5, y: 0.5 }),
+        Health(50),
+    ));
+
+    // Spawn entity 2 without Health (should be excluded by filter)
+    world.spawn_entity((Position { x: 10.0, y: 20.0 }, Velocity { x: 2.0, y: 2.0 }));
+
+    // System with nested QueryData and nested QueryFilter:
+    // Data: ((&Position, &mut Velocity), &Health)
+    // Filter: (With<Position>, (With<Health>, Without<Name>))
+    fn nested_system(
+        query: Query<
+            ((&Position, &mut Velocity), &Health),
+            (With<Position>, (With<Health>, Without<Name>)),
+        >,
+    ) {
+        for ((pos, mut vel), health) in query.into_iter() {
+            vel.x += pos.x + health.0 as f32;
+            vel.y += pos.y;
+        }
+    }
+
+    world.add_system(nested_system);
+    world.step();
+
+    // Verify that velocity was updated for entity 1
+    let query = Query::<(&Position, &Velocity, &Health)>::retrieve(&world, &HashMap::new()).unwrap();
+    let mut iter = query.into_iter();
+    let (pos, vel, hp) = iter.next().unwrap();
+    assert_eq!(*pos, Position { x: 1.0, y: 2.0 });
+    assert_eq!(*vel, Velocity { x: 51.5, y: 2.5 });
+    assert_eq!(*hp, Health(50));
+    assert!(iter.next().is_none());
+}
+

@@ -33,7 +33,7 @@ pub struct QueryCache {
 }
 
 #[allow(dead_code)]
-enum QueryDependency {
+pub enum QueryDependency {
     Archetypes,
     Command, // no yet implemented
 }
@@ -180,11 +180,34 @@ pub trait QueryData {
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError>;
 }
+
+impl<A: QueryArgument> QueryData for A {
+    type Item<'a> = A::Item<'a>;
+
+    fn filter(archetypes: &mut Vec<&Archetype>) {
+        A::filter(archetypes);
+    }
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
+        A::filter_id(archetypes, world);
+    }
+
+    fn get_dependency() -> QueryDependency {
+        QueryDependency::Archetypes
+    }
+
+    fn retrieve<'w>(
+        archetype: &'w Archetype,
+        row: ArchetypeRow,
+    ) -> Result<Self::Item<'w>, AccessComponentError> {
+        Ok(A::retrieve(archetype, row)?)
+    }
+}
+
 macro_rules! impl_query_tupple {
     ($( $params:ident ),*) => {
         #[allow(unused_parens)]
         //impl<'a, $($params:for<'b> QueryArgument<'b>),*> QueryData<'a> for ($($params),*)
-        impl<$($params: QueryArgument),*> QueryData for ($($params),*)
+        impl<$($params: QueryData,)*> QueryData for ($($params,)*)
         {
             type Item<'w> = ($($params::Item<'w>),*);
 
@@ -204,8 +227,7 @@ macro_rules! impl_query_tupple {
                 Ok((
                 $(
                     $params::retrieve(archetype, row)?
-                    //$params::retrieve(archetype, row)?
-                    ),*
+                ),*
                 ))
             }
 
@@ -225,11 +247,25 @@ pub trait QueryFilter {
     #[allow(private_interfaces)]
     fn get_dependency() -> QueryDependency;
 }
-macro_rules! impl_query_tupple {
+impl<A: QueryFilterArgument> QueryFilter for A {
+    fn filter(archetypes: &mut Vec<&Archetype>) {
+        A::filter(archetypes);
+    }
+
+    fn filter_id(archetypes: &mut Vec<ArchetypeId>, world: &World) {
+        A::filter_id(archetypes, world);
+    }
+
+    #[allow(private_interfaces)]
+    fn get_dependency() -> QueryDependency {
+        QueryDependency::Archetypes
+    }
+}
+macro_rules! impl_query_filter_tupple {
     ($( $params:ident ),*) => {
         #[allow(unused_parens)]
         #[allow(unused_variables)]
-        impl<$($params:QueryFilterArgument),*> QueryFilter for ($($params),*)
+        impl<$($params:QueryFilter,)*> QueryFilter for ($($params,)*)
         {
             fn filter(archetypes: &mut Vec<&Archetype>){
                 $(
@@ -250,7 +286,7 @@ macro_rules! impl_query_tupple {
         }
     };
 }
-repeat_macro_with_argument!(impl_query_tupple, 32);
+repeat_macro_with_argument!(impl_query_filter_tupple, 32);
 
 pub trait QueryArgument {
     type Item<'w>;
