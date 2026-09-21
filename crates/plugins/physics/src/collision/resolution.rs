@@ -1,12 +1,9 @@
 use arrayvec::ArrayVec;
-use glam::{Mat3, Vec3};
+use glam::Vec3;
 
 use crate::{
     collision::{
-        self,
-        collision_management::{
-            CollisionEntity, ContactManifold, MAX_COLLISION_POINTS, RigidBodyEntity, StaticEntity,
-        },
+        collision_management::{CollisionEntity, MAX_COLLISION_POINTS},
         detection::{DetectedCollision, DetectedCollisions},
     },
     rigidbody::ForceMode,

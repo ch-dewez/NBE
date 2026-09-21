@@ -1,9 +1,5 @@
 use core_components::transform::Transform;
-use ecs::{
-    component::{Component, ComponentTupple},
-    query::Query,
-    ressource::Res,
-};
+use ecs::{component::Component, query::Query, ressource::Res};
 use engine::application::DeltaTimeS;
 use glam::{Mat3, Quat, Vec3};
 
@@ -208,13 +204,13 @@ impl Default for Gravity {
 }
 
 pub(crate) fn gravity_update(query: Query<(&mut RigidBody, &Gravity)>) {
-    for (mut rb, grav) in query.into_iter() {
+    for (rb, grav) in query.into_iter() {
         rb.apply_force(grav.0, ForceMode::Acceleration);
     }
 }
 
 pub(crate) fn rb_update(query: Query<(&mut Transform, &mut RigidBody)>, dt: Res<DeltaTimeS>) {
-    for (mut transform, mut rb) in query.into_iter() {
+    for (transform, rb) in query.into_iter() {
         let acceleration = rb.force_accum / rb.mass;
         rb.linear += acceleration * dt.0;
         let torque = rb.torque_accum;

@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use crate::collision::collision_management::MAX_COLLISION_POINTS;
 use arrayvec::ArrayVec;
 use core_components::transform::Transform;

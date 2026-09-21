@@ -8,11 +8,7 @@ use crate::{
     system_local::LocalStorage,
     world::World,
 };
-use std::{
-    cell::{Ref, RefMut},
-    collections::HashSet,
-    marker::PhantomData,
-};
+use std::{collections::HashSet, marker::PhantomData};
 
 pub struct Query<'a, T: QueryData, F: QueryFilter = ()> {
     pub archetypes: Vec<&'a Archetype>,
@@ -299,7 +295,7 @@ pub trait QueryArgument {
     ) -> Result<Self::Item<'w>, AccessComponentError>;
 }
 impl<T: Component> QueryArgument for &T {
-    type Item<'w> = Ref<'w, T>;
+    type Item<'w> = &'w T;
 
     fn filter(archetypes: &mut Vec<&Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
@@ -315,7 +311,7 @@ impl<T: Component> QueryArgument for &T {
     }
 }
 impl<T: Component> QueryArgument for &mut T {
-    type Item<'w> = RefMut<'w, T>;
+    type Item<'w> = &'w mut T;
 
     fn filter(archetypes: &mut Vec<&Archetype>) {
         archetypes.retain(|x| x.signature.contains::<T>());
@@ -328,7 +324,7 @@ impl<T: Component> QueryArgument for &mut T {
         archetype: &'w Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError> {
-        archetype.get_component_row_mut::<T>(row)
+        unsafe { archetype.get_component_row_mut_unsafe::<T>(row) }
     }
 }
 

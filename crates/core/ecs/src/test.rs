@@ -1,6 +1,10 @@
-use std::{cell::Ref, collections::HashMap};
+use std::collections::HashMap;
 
-use crate::{query::EntityArgument, system_local::{Local, SystemLocal}, world::FromWorld};
+use crate::{
+    query::EntityArgument,
+    system_local::{Local, SystemLocal},
+    world::FromWorld,
+};
 
 //
 //
@@ -10,11 +14,11 @@ use crate::{query::EntityArgument, system_local::{Local, SystemLocal}, world::Fr
 //
 //
 use super::{
-    component::Component, 
-    world::World, 
+    component::Component,
     query::{Query, With, Without},
+    ressource::{Res, ResMut, Ressource},
     system::SystemParam,
-    ressource::{Ressource, Res, ResMut}
+    world::World,
 };
 
 // --- Components ---
@@ -51,15 +55,15 @@ struct Settings {
 impl Ressource for Settings {}
 
 // --- Systems ---
-fn movement_system(query: Query<(& mut Position, & Velocity)>) {
-    for (mut position, velocity) in query.into_iter() {
+fn movement_system(query: Query<(&mut Position, &Velocity)>) {
+    for (position, velocity) in query.into_iter() {
         position.x += velocity.x;
         position.y += velocity.y;
     }
 }
 
 fn health_system(query: Query<&mut Health, With<Position>>) {
-    for mut health in query.into_iter() {
+    for health in query.into_iter() {
         health.0 = health.0.saturating_sub(1); // Reduce health, but not below 0
     }
 }
@@ -94,14 +98,18 @@ fn test_spawn_entity_no_components() {
 #[test]
 fn test_spawn_entity_with_components() {
     let mut world = World::new();
-    let entity = world.spawn_entity((Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 })).0;
+    let entity = world
+        .spawn_entity((Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 }))
+        .0;
     assert_eq!(entity.id, 0);
     assert_eq!(entity.version, 0);
 
     // Verify components are present by trying to query
     let query = Query::<(&Position, &Velocity)>::retrieve(&world, &HashMap::new()).unwrap();
     let mut iter = query.into_iter();
-    let (pos, vel) = iter.next().expect("Should have one entity with Position and Velocity");
+    let (pos, vel) = iter
+        .next()
+        .expect("Should have one entity with Position and Velocity");
     assert_eq!(*pos, Position { x: 0.0, y: 0.0 });
     assert_eq!(*vel, Velocity { x: 1.0, y: 1.0 });
     assert!(iter.next().is_none());
@@ -121,7 +129,6 @@ fn test_remove_entity() {
     let pos = iter.next().expect("Entity2 should still be present");
     assert_eq!(*pos, Position { x: 1.0, y: 1.0 });
     assert!(iter.next().is_none());
-    std::mem::drop(pos);
 
     // Spawning a new entity should reuse the ID of entity1
     let entity3 = world.spawn_entity(Health(10)).0;
@@ -139,25 +146,31 @@ fn test_add_component() {
     assert!(query_vel.into_iter().flatten().next().is_none());
 
     // Add Velocity component
-    world.add_component(entity, Velocity { x: 1.0, y: 1.0 }).unwrap();
+    world
+        .add_component(entity, Velocity { x: 1.0, y: 1.0 })
+        .unwrap();
 
     // Now, entity should have Position and Velocity
     let query_pos_vel = Query::<(&Position, &Velocity)>::retrieve(&world, &HashMap::new()).unwrap();
-    let (pos, vel) = query_pos_vel.into_iter().next().expect("Entity should have Position and Velocity");
+    let (pos, vel) = query_pos_vel
+        .into_iter()
+        .next()
+        .expect("Entity should have Position and Velocity");
     assert_eq!(*pos, Position { x: 0.0, y: 0.0 });
     assert_eq!(*vel, Velocity { x: 1.0, y: 1.0 });
-    std::mem::drop(pos);
-    std::mem::drop(vel);
 
     // Ensure it's not present in archetypes without Velocity
-    let query_pos_only = Query::<&Position, Without<Velocity>>::retrieve(&world, &HashMap::new()).unwrap();
+    let query_pos_only =
+        Query::<&Position, Without<Velocity>>::retrieve(&world, &HashMap::new()).unwrap();
     assert!(query_pos_only.into_iter().next().is_none());
 }
 
 #[test]
 fn test_remove_component() {
     let mut world = World::new();
-    let entity = world.spawn_entity((Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 })).0;
+    let entity = world
+        .spawn_entity((Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 1.0 }))
+        .0;
 
     // Initially, entity has both Position and Velocity
     let query_pos_vel = Query::<(&Position, &Velocity)>::retrieve(&world, &HashMap::new()).unwrap();
@@ -169,10 +182,11 @@ fn test_remove_component() {
     // Now, entity should only have Position
     let query_pos_only = Query::<&Position>::retrieve(&world, &HashMap::new()).unwrap();
     let mut query_pos_only_iter = query_pos_only.into_iter();
-    let pos = query_pos_only_iter.next().expect("Entity should only have Position");
+    let pos = query_pos_only_iter
+        .next()
+        .expect("Entity should only have Position");
     assert_eq!(*pos, Position { x: 0.0, y: 0.0 });
     assert!(query_pos_only_iter.next().is_none());
-    std::mem::drop(pos);
 
     // Should not be in queries for Velocity
     let query_vel_only = Query::<&Velocity>::retrieve(&world, &HashMap::new());
@@ -185,7 +199,9 @@ fn test_add_remove_sequence() {
     let entity = world.spawn_entity(Position { x: 0.0, y: 0.0 }).0;
 
     // Add Velocity
-    world.add_component(entity, Velocity { x: 1.0, y: 1.0 }).unwrap();
+    world
+        .add_component(entity, Velocity { x: 1.0, y: 1.0 })
+        .unwrap();
     let query1 = Query::<(&Position, &Velocity)>::retrieve(&world, &HashMap::new()).unwrap();
     assert!(query1.into_iter().next().is_some());
 
@@ -216,15 +232,19 @@ fn test_movement_system() {
     world.step(); // Run the system
 
     let query = Query::<(&Position, &Velocity)>::retrieve(&world, &HashMap::new()).unwrap();
-    let mut results: Vec<(Ref<Position>, Ref<Velocity>)> = query.into_iter().collect();
+    let mut results: Vec<(&Position, &Velocity)> = query.into_iter().collect();
     results.sort_by(|a, b| a.0.x.partial_cmp(&b.0.x).unwrap()); // Sort to ensure consistent order
 
-    assert_eq!(*results[0].0, Position { x: 1.0, y: 0.5 }); 
-    assert_eq!(*results[1].0, Position { x: 8.0, y: 6.0 }); 
+    assert_eq!(*results[0].0, Position { x: 1.0, y: 0.5 });
+    assert_eq!(*results[1].0, Position { x: 8.0, y: 6.0 });
 
     // Verify entity3_no_velocity didn't move
-    let query_no_vel = Query::<&Position, Without<Velocity>>::retrieve(&world, &HashMap::new()).unwrap();
-    let pos_no_vel = query_no_vel.into_iter().next().expect("Entity without velocity should still exist");
+    let query_no_vel =
+        Query::<&Position, Without<Velocity>>::retrieve(&world, &HashMap::new()).unwrap();
+    let pos_no_vel = query_no_vel
+        .into_iter()
+        .next()
+        .expect("Entity without velocity should still exist");
     assert_eq!(*pos_no_vel, Position { x: 100.0, y: 200.0 });
 }
 
@@ -239,13 +259,18 @@ fn test_health_system_with_filter() {
 
     world.step(); // Run the system
 
-    let query_health_pos = Query::<&Health, With<Position>>::retrieve(&world, &HashMap::new()).unwrap();
+    let query_health_pos =
+        Query::<&Health, With<Position>>::retrieve(&world, &HashMap::new()).unwrap();
     let mut health_values_with_pos: Vec<u32> = query_health_pos.into_iter().map(|h| h.0).collect();
     health_values_with_pos.sort();
     assert_eq!(health_values_with_pos, vec![0, 9]);
 
-    let query_health_only = Query::<&Health, Without<Position>>::retrieve(&world, &HashMap::new()).unwrap();
-    let health_only = query_health_only.into_iter().next().expect("Entity2 health should be unchanged");
+    let query_health_only =
+        Query::<&Health, Without<Position>>::retrieve(&world, &HashMap::new()).unwrap();
+    let health_only = query_health_only
+        .into_iter()
+        .next()
+        .expect("Entity2 health should be unchanged");
     assert_eq!(health_only.0, 5);
 }
 
@@ -255,7 +280,11 @@ fn test_name_logger_system_without_filter() {
     world.add_system(name_logger_system);
 
     let _entity1 = world.spawn_entity((Name("Alice".to_string()), Position { x: 1.0, y: 2.0 })); // Will be logged
-    let _entity2 = world.spawn_entity((Name("Bob".to_string()), Position { x: 3.0, y: 4.0 }, Health(10))); // Has Health, will NOT be logged
+    let _entity2 = world.spawn_entity((
+        Name("Bob".to_string()),
+        Position { x: 3.0, y: 4.0 },
+        Health(10),
+    )); // Has Health, will NOT be logged
 
     // The system prints, we can't assert output directly without capturing stdout,
     // but we can ensure it runs without panicking.
@@ -263,7 +292,8 @@ fn test_name_logger_system_without_filter() {
 
     // To properly test, one would usually capture stdout or mock the logging.
     // For now, we'll assume no panic means it ran correctly.
-    let query_logged = Query::<(&Name, &Position), Without<Health>>::retrieve(&world, &HashMap::new()).unwrap();
+    let query_logged =
+        Query::<(&Name, &Position), Without<Health>>::retrieve(&world, &HashMap::new()).unwrap();
     assert_eq!(query_logged.into_iter().count(), 1); // Only Alice should match
 }
 
@@ -277,16 +307,22 @@ fn test_resource_management() {
 
     // Retrieve resources
     {
-        let score = world.get_ressource::<Score>().expect("Score resource should exist");
+        let score = world
+            .get_ressource::<Score>()
+            .expect("Score resource should exist");
         assert_eq!(score.0, 100);
 
-        let settings = world.get_ressource::<Settings>().expect("Settings resource should exist");
+        let settings = world
+            .get_ressource::<Settings>()
+            .expect("Settings resource should exist");
         assert_eq!(settings.difficulty, 1.5);
     }
 
     // Modify resource
     {
-        let mut score = world.get_ressource_mut::<Score>().expect("Score resource should exist");
+        let mut score = world
+            .get_ressource_mut::<Score>()
+            .expect("Score resource should exist");
         score.0 += 50;
     }
 
@@ -337,21 +373,23 @@ fn test_system_param_resource_retrieval() {
     world.add_ressource(Score(50));
 
     // Manual retrieval via SystemParam
-    let score = Res::<Score>::retrieve(&world, &HashMap::new()).expect("Should retrieve Score via SystemParam");
+    let score = Res::<Score>::retrieve(&world, &HashMap::new())
+        .expect("Should retrieve Score via SystemParam");
     assert_eq!(score.0, 50);
     drop(score);
 
-    let mut score_mut = ResMut::<Score>::retrieve(&world, &HashMap::new()).expect("Should retrieve Score mutably via SystemParam");
+    let mut score_mut = ResMut::<Score>::retrieve(&world, &HashMap::new())
+        .expect("Should retrieve Score mutably via SystemParam");
     score_mut.0 = 75;
-    std::mem::drop(score_mut);
+    drop(score_mut);
 
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 75);
 }
 
 #[test]
 fn test_local_persistence_in_system() {
+    use crate::system_local::{Local, SystemLocal};
     use crate::world::FromWorld;
-    use crate::system_local::{SystemLocal, Local};
 
     struct MyLocal {
         counter: u32,
@@ -394,7 +432,7 @@ fn test_resource_system_with_step() {
 
     world.step();
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 20);
-    
+
     // Test direct retrieve with empty local storage
     let score = Res::<Score>::retrieve(&world, &HashMap::new()).unwrap();
     assert_eq!(score.0, 20);
@@ -402,7 +440,7 @@ fn test_resource_system_with_step() {
 
 #[test]
 fn test_single_event_with_add_event() {
-    use crate::event::{Event, SingleEventWriter, SingleEventReader};
+    use crate::event::{Event, SingleEventReader, SingleEventWriter};
 
     #[derive(Clone, Debug, PartialEq)]
     struct MySingleEvent(u32);
@@ -423,7 +461,7 @@ fn test_single_event_with_add_event() {
     let mut world = World::new();
     world.add_ressource(Score(0));
     world.add_single_event::<MySingleEvent>();
-    
+
     world.add_system(writer);
     world.add_system(reader);
 
@@ -433,14 +471,16 @@ fn test_single_event_with_add_event() {
     let mut world2 = World::new();
     world2.add_ressource(Score(0));
     world2.add_single_event::<MySingleEvent>();
-    
-    world2.add_system(|mut w: SingleEventWriter<MySingleEvent>, score: Res<Score>| {
-        if score.0 == 0 {
-            w.write(MySingleEvent(42));
-        }else if score.0 == 42 {
-            w.write(MySingleEvent(1));
-        }
-    });
+
+    world2.add_system(
+        |mut w: SingleEventWriter<MySingleEvent>, score: Res<Score>| {
+            if score.0 == 0 {
+                w.write(MySingleEvent(42));
+            } else if score.0 == 42 {
+                w.write(MySingleEvent(1));
+            }
+        },
+    );
     world2.add_system(reader);
 
     world2.step();
@@ -457,7 +497,7 @@ fn test_single_event_with_add_event() {
 
 #[test]
 fn test_single_event_reader_before() {
-    use crate::event::{Event, SingleEventWriter, SingleEventReader};
+    use crate::event::{Event, SingleEventReader, SingleEventWriter};
 
     #[derive(Clone, Debug, PartialEq)]
     struct MySingleEvent(u32);
@@ -478,7 +518,7 @@ fn test_single_event_reader_before() {
     let mut world = World::new();
     world.add_ressource(Score(0));
     world.add_single_event::<MySingleEvent>();
-    
+
     world.add_system(reader);
     world.add_system(writer);
 
@@ -493,13 +533,13 @@ fn test_single_event_reader_before() {
 
 #[test]
 fn test_event_with_add_event() {
-    use crate::event::{Event, EventWriter, EventReader};
+    use crate::event::{Event, EventReader, EventWriter};
 
     #[derive(Clone, Debug, PartialEq)]
     struct MyEvent(u32);
     impl Event for MyEvent {}
 
-    struct OneEveryTwoLocal (bool);
+    struct OneEveryTwoLocal(bool);
     impl SystemLocal for OneEveryTwoLocal {}
     impl FromWorld for OneEveryTwoLocal {
         fn from_world(_world: &World) -> Self {
@@ -526,31 +566,33 @@ fn test_event_with_add_event() {
     let mut world = World::new();
     world.add_ressource(Score(0));
     world.add_event::<MyEvent>();
-    
+
     world.add_system(writer);
     world.add_system(reader);
-
 
     world.step();
     // Frame 1: previous=[] this=[10, 20] -> sum=30
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 30);
 
     world.step();
-    // Frame 2: 
+    // Frame 2:
     // Last frame event already handled, no new event
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 30);
     world.step();
-    // Frame 3: 
+    // Frame 3:
     // New events
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 60);
-    // Frame 4: 
+    // Frame 4:
     // No new events
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 60);
 }
 
 #[test]
 fn test_command_system() {
-    use crate::command::{Command, AddEntityCommand, RemoveEntityCommand, AddComponentsCommand, RemoveComponentCommand, CommandHandlerTrait};
+    use crate::command::{
+        AddComponentsCommand, AddEntityCommand, Command, CommandHandlerTrait,
+        RemoveComponentCommand, RemoveEntityCommand,
+    };
     use crate::event::{Event, SingleEventReader, SingleEventWriter};
 
     #[derive(Clone)]
@@ -571,14 +613,25 @@ fn test_command_system() {
     let entity = world.spawn_entity(Position { x: 0.0, y: 0.0 }).0;
 
     // 1. Test AddComponentsCommand and AddEntityCommand
-    world.add_system(move |mut reader: SingleEventReader<DoAdd>, mut commands: ResMut<Command>| {
-        if reader.read().is_some() {
-            commands.0.push(Box::new(AddComponentsCommand::new(entity, Health(100))));
-            commands.0.push(Box::new(AddEntityCommand::new_no_callbacks(Velocity { x: 1.0, y: 1.0 })));
-        }
-    });
+    world.add_system(
+        move |mut reader: SingleEventReader<DoAdd>, mut commands: ResMut<Command>| {
+            if reader.read().is_some() {
+                commands
+                    .0
+                    .push(Box::new(AddComponentsCommand::new(entity, Health(100))));
+                commands
+                    .0
+                    .push(Box::new(AddEntityCommand::new_no_callbacks(Velocity {
+                        x: 1.0,
+                        y: 1.0,
+                    })));
+            }
+        },
+    );
 
-    SingleEventWriter::retrieve(&world, &HashMap::new()).unwrap().write(DoAdd);
+    SingleEventWriter::retrieve(&world, &HashMap::new())
+        .unwrap()
+        .write(DoAdd);
 
     world.step();
     world.handle_command(&mut DummyHandler);
@@ -594,18 +647,27 @@ fn test_command_system() {
     // 2. Test RemoveComponentCommand and RemoveEntityCommand
     // We need to find the new entity with Velocity to remove it
     let velocity_entity = {
-        let query = Query::<EntityArgument, With<Velocity>>::retrieve(&world, &HashMap::new()).unwrap();
+        let query =
+            Query::<EntityArgument, With<Velocity>>::retrieve(&world, &HashMap::new()).unwrap();
         query.into_iter().next().unwrap()
     };
 
-    world.add_system(move |mut reader: SingleEventReader<DoRemove>, mut commands: ResMut<Command>| {
-        if reader.read().is_some() {
-            commands.0.push(Box::new(RemoveComponentCommand::<Health>::new(entity)));
-            commands.0.push(Box::new(RemoveEntityCommand::new(velocity_entity)));
-        }
-    });
+    world.add_system(
+        move |mut reader: SingleEventReader<DoRemove>, mut commands: ResMut<Command>| {
+            if reader.read().is_some() {
+                commands
+                    .0
+                    .push(Box::new(RemoveComponentCommand::<Health>::new(entity)));
+                commands
+                    .0
+                    .push(Box::new(RemoveEntityCommand::new(velocity_entity)));
+            }
+        },
+    );
 
-    SingleEventWriter::retrieve(&world, &HashMap::new()).unwrap().write(DoRemove);
+    SingleEventWriter::retrieve(&world, &HashMap::new())
+        .unwrap()
+        .write(DoRemove);
 
     world.step();
     world.handle_command(&mut DummyHandler);
@@ -634,9 +696,12 @@ fn test_nested_component_tuple() {
     assert_eq!(entity.id, 0);
 
     // Verify all components were correctly initialized on the entity
-    let query = Query::<(&Position, &Velocity, &Health, &Name)>::retrieve(&world, &HashMap::new()).unwrap();
+    let query =
+        Query::<(&Position, &Velocity, &Health, &Name)>::retrieve(&world, &HashMap::new()).unwrap();
     let mut iter = query.into_iter();
-    let (pos, vel, hp, name) = iter.next().expect("Entity should exist with all 4 components");
+    let (pos, vel, hp, name) = iter
+        .next()
+        .expect("Entity should exist with all 4 components");
     assert_eq!(*pos, Position { x: 10.0, y: 20.0 });
     assert_eq!(*vel, Velocity { x: 1.0, y: 2.0 });
     assert_eq!(*hp, Health(100));
@@ -666,7 +731,7 @@ fn test_nested_query_tuple() {
             (With<Position>, (With<Health>, Without<Name>)),
         >,
     ) {
-        for ((pos, mut vel), health) in query.into_iter() {
+        for ((pos, vel), health) in query.into_iter() {
             vel.x += pos.x + health.0 as f32;
             vel.y += pos.y;
         }
@@ -676,7 +741,8 @@ fn test_nested_query_tuple() {
     world.step();
 
     // Verify that velocity was updated for entity 1
-    let query = Query::<(&Position, &Velocity, &Health)>::retrieve(&world, &HashMap::new()).unwrap();
+    let query =
+        Query::<(&Position, &Velocity, &Health)>::retrieve(&world, &HashMap::new()).unwrap();
     let mut iter = query.into_iter();
     let (pos, vel, hp) = iter.next().unwrap();
     assert_eq!(*pos, Position { x: 1.0, y: 2.0 });
@@ -684,4 +750,3 @@ fn test_nested_query_tuple() {
     assert_eq!(*hp, Health(50));
     assert!(iter.next().is_none());
 }
-

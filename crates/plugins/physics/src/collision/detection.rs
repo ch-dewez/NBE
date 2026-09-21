@@ -1,16 +1,9 @@
-use std::cell::Ref;
-
 use core_components::transform::Transform;
-use ecs::entity::Entity;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::{
-    collision::{
-        colliders::{Collider, Colliders, CubeCollider},
-        collision_management::{CollisionEntity, ContactManifold, RigidBodyEntity, StaticEntity},
-        sat::apply_sat_and_clipping,
-    },
-    rigidbody::RigidBody,
+use crate::collision::{
+    colliders::{Collider, CubeCollider},
+    collision_management::{CollisionEntity, ContactManifold},
+    sat::apply_sat_and_clipping,
 };
 
 pub type DetectedCollision = (ContactManifold, usize, usize);

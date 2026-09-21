@@ -1,4 +1,4 @@
-use std::{rc::Rc, thread, time::Duration};
+use std::rc::Rc;
 
 use core_components::transform::Transform;
 use ecs::{
@@ -9,7 +9,7 @@ use ecs::{
 };
 use engine::{app_command::StopAppCommand, application::DeltaTimeS, plugin::Plugin};
 use gl_renderer::{camera::Camera, default_shaders::DefaultShaders};
-use glam::{Mat3, Quat, Vec2, Vec3, Vec4};
+use glam::{Quat, Vec2, Vec3, Vec4};
 use opengl::{
     context::OpenGlContext,
     material::{Material, MaterialComponent, MaterialTemplate},
@@ -283,6 +283,41 @@ impl Plugin for GamePlugin {
                 Vec3::new(0.0, 1.0, -2.0),
                 Quat::from_xyzw(0.88807, 0.32506, -0.32506, 0.0), // cube standing (more or less) on its vertex
                 //Quat::IDENTITY,
+                Vec3::new(1.0, 1.0, 1.0),
+            );
+
+            let mat_comp = MaterialComponent(dark_color_material.clone());
+
+            let mesh_comp = MeshComponent(mesh.clone());
+
+            let mut collider = CubeCollider::default();
+            collider.density = Some(4.0);
+            let colliders = Colliders::from(collider);
+
+            let rb = RigidBody::new_from_linear_angular_vel(
+                Vec3::ZERO,
+                //Vec3::new(2.0, 0.0, 0.001),
+                Vec3::ZERO,
+                &colliders,
+                &transform,
+            );
+
+            world.spawn_entity((
+                transform,
+                mesh_comp,
+                mat_comp,
+                colliders,
+                rb,
+                Gravity::default(),
+            ));
+        }
+
+        {
+            // CUBE
+            let transform = Transform::new(
+                Vec3::new(0.0, 3.0, -2.0),
+                //Quat::from_xyzw(0.88807, 0.32506, -0.32506, 0.0), // cube standing (more or less) on its vertex
+                Quat::IDENTITY,
                 Vec3::new(1.0, 1.0, 1.0),
             );
 

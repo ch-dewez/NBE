@@ -1,5 +1,3 @@
-use std::cell::{Ref, RefMut};
-
 use arrayvec::ArrayVec;
 use core_components::transform::Transform;
 use ecs::{
@@ -45,13 +43,13 @@ impl<'a> CollisionEntity<'a> {
             Self::RigidBody(entity) => entity.0,
         }
     }
-    pub fn get_transform<'b>(&'b self) -> &'b Ref<'b, Transform> {
+    pub fn get_transform<'b>(&'b self) -> &'b Transform {
         match self {
             Self::StaticEntity(entity) => &entity.1,
             Self::RigidBody(entity) => &entity.1,
         }
     }
-    pub fn get_colliders<'b>(&'b self) -> &Ref<'b, Colliders> {
+    pub fn get_colliders<'b>(&'b self) -> &'b Colliders {
         match self {
             Self::StaticEntity(entity) => &entity.2,
             Self::RigidBody(entity) => &entity.2,
@@ -67,13 +65,13 @@ impl<'a> CollisionEntity<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct StaticEntity<'a>(pub Entity, pub Ref<'a, Transform>, pub Ref<'a, Colliders>);
+pub(crate) struct StaticEntity<'a>(pub Entity, pub &'a Transform, pub &'a Colliders);
 #[derive(Debug)]
 pub(crate) struct RigidBodyEntity<'a>(
     pub Entity,
-    pub Ref<'a, Transform>,
-    pub Ref<'a, Colliders>,
-    pub RefMut<'a, RigidBody>,
+    pub &'a Transform,
+    pub &'a Colliders,
+    pub &'a mut RigidBody,
 );
 
 pub fn manage_collision(

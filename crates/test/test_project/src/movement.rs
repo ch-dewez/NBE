@@ -12,7 +12,7 @@ impl From<Vec3> for Velocity {
 impl Component for Velocity {}
 
 pub fn move_system(query: Query<(&Velocity, &mut Transform)>, dt: Res<DeltaTimeS>) {
-    for (velocity, mut transform) in query.into_iter() {
+    for (velocity, transform) in query.into_iter() {
         transform.position += velocity.0 * dt.0;
     }
 }

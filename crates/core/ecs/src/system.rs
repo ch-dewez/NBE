@@ -1,13 +1,17 @@
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use macro_utils::repeat_macro_with_argument;
 
-use crate::{archetype::ArchetypeId, ressource::RessourceId, system_local::LocalStorage , world::World};
-
+use crate::{
+    archetype::ArchetypeId, ressource::RessourceId, system_local::LocalStorage, world::World,
+};
 
 pub type StoredSystem = Box<dyn System>;
 
-pub trait System{
+pub trait System {
     fn init(&mut self, world: &World);
 
     fn run(&mut self, world: &World);
@@ -24,7 +28,7 @@ pub trait System{
 pub enum SystemDependency {
     Command,
     Archetype(ArchetypeId),
-    Ressource(RessourceId)
+    Ressource(RessourceId),
 }
 
 pub trait IntoSystem<Input> {
@@ -37,7 +41,7 @@ macro_rules! impl_into_system {
     ($($params:ident),*) => {
         #[allow(non_snake_case)]
         #[allow(unused)]
-        impl<F: FnMut($($params),*), $($params: SystemParam + 'static),*> IntoSystem<($($params),*)> for F 
+        impl<F: FnMut($($params),*), $($params: SystemParam + 'static),*> IntoSystem<($($params),*)> for F
         where
             for<'a, 'b, 'c> &'a mut F:
             FnMut($($params),*) +
@@ -46,6 +50,7 @@ macro_rules! impl_into_system {
             type System = FunctionSystem<($($params),*), Self>;
 
             fn into_system(self) -> Self::System {
+                // TODO: Verify if all the system param are compatible (no two query that query the same entities -> borrowing rules)
                 FunctionSystem {
                     f: self,
                     cache: None,
@@ -59,12 +64,11 @@ macro_rules! impl_into_system {
     };
 }
 
-
 macro_rules! impl_system  {
     ($($params:ident),*) => {
         #[allow(non_snake_case)]
         #[allow(unused)]
-    impl<F: FnMut($($params),*), $($params: SystemParam + 'static),*> System for FunctionSystem<($($params),*), F> 
+    impl<F: FnMut($($params),*), $($params: SystemParam + 'static),*> System for FunctionSystem<($($params),*), F>
         where
             for<'a, 'b, 'c> &'a mut F:
                 FnMut($($params),*) +
@@ -189,30 +193,38 @@ macro_rules! impl_system_param_tupple {
 }
 repeat_macro_with_argument!(impl_system_param_tupple, 32);
 
-
 pub struct FunctionSystem<Input: SystemParamTupple, F> {
     f: F,
     cache: Option<Input::Cache>,
     dependencies: Option<Arc<[SystemDependency]>>,
 
-    local: LocalStorage
+    local: LocalStorage,
 }
-unsafe impl<Input: SystemParamTupple, F> Send for FunctionSystem<Input, F>{}
-unsafe impl<Input: SystemParamTupple, F> Sync for FunctionSystem<Input, F>{}
+unsafe impl<Input: SystemParamTupple, F> Send for FunctionSystem<Input, F> {}
+unsafe impl<Input: SystemParamTupple, F> Sync for FunctionSystem<Input, F> {}
 
-pub trait SystemParam{
+pub trait SystemParam {
     type Item<'w, 'l>;
     type Cache;
 
-    fn init(world:&World, local: &mut LocalStorage);
+    fn init(world: &World, local: &mut LocalStorage);
 
     fn retrieve<'w, 'l>(world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>;
-    fn retrieve_no_local<'w, 'l>(_world: &'w World) -> Option<Self::Item<'w, 'l>> { panic!(r#"You cannot retrieve this  "system param" without local"#); }
+    fn retrieve_no_local<'w, 'l>(_world: &'w World) -> Option<Self::Item<'w, 'l>> {
+        panic!(r#"You cannot retrieve this  "system param" without local"#);
+    }
 
-    fn from_cache<'w, 'l>(cache: &Self::Cache, world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>>;
+    fn from_cache<'w, 'l>(
+        cache: &Self::Cache,
+        world: &'w World,
+        local: &'l LocalStorage,
+    ) -> Option<Self::Item<'w, 'l>>;
     fn cache(world: &World, local: &LocalStorage) -> Option<Self::Cache>;
 
     fn get_dependencies(world: &World, local: &LocalStorage) -> HashSet<SystemDependency>;
-    fn get_dependencies_from_cache(world: &World, cache: &Self::Cache, local: &LocalStorage) -> HashSet<SystemDependency>;
+    fn get_dependencies_from_cache(
+        world: &World,
+        cache: &Self::Cache,
+        local: &LocalStorage,
+    ) -> HashSet<SystemDependency>;
 }
-
