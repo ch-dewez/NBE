@@ -3,7 +3,7 @@ use glam::Vec3;
 
 use crate::collision::{
     colliders::{CubeCollider, Edge, EdgeIndex, Face, FaceIndex},
-    collision_management::{ContactManifold, ContactPoint},
+    collision_management::{ContactManifold, ContactPoint, MAX_COLLISION_POINTS},
     sat::{SATFeature, SATResult},
 };
 
@@ -55,9 +55,10 @@ fn edge_edge_manifold<A: EdgeEdgeable, B: EdgeEdgeable>(
 
     let determinant = a * c - b * b;
 
-    if determinant <= 0.0 {
+    if determinant <= 1e-4 {
         // idk
         // can it happen?
+        panic!();
     }
 
     let mut s = (b * e - c * d) / determinant;
@@ -66,7 +67,7 @@ fn edge_edge_manifold<A: EdgeEdgeable, B: EdgeEdgeable>(
     let s_clamped = s.clamp(0.0, 1.0);
     let t_clamped = t.clamp(0.0, 1.0);
 
-    t = (b * s_clamped + e) / c;
+    t = ((b * s_clamped + e) / c).clamp(0.0, 1.0);
     s = ((b * t_clamped - d) / a).clamp(0.0, 1.0);
 
     let c_a = la(s);
@@ -85,6 +86,7 @@ fn edge_edge_manifold<A: EdgeEdgeable, B: EdgeEdgeable>(
     ContactManifold {
         points: points,
         mtv: sat.mtv,
+        normal: sat.mtv.normalize_or_zero(),
     }
 }
 
@@ -109,8 +111,8 @@ fn clipping<A: Clippable, B: Clippable>(sat: SATResult, shape_a: A, shape_b: B) 
 
     let inward_planes = reference.get_inward_planes();
 
-    let mut result: ArrayVec<Vec3, 8> = incident.vertices.into_iter().collect();
-    let mut buffer: ArrayVec<Vec3, 8> = ArrayVec::new();
+    let mut result: ArrayVec<Vec3, MAX_COLLISION_POINTS> = incident.vertices.into_iter().collect();
+    let mut buffer: ArrayVec<Vec3, MAX_COLLISION_POINTS> = ArrayVec::new();
     for plane in inward_planes {
         let len = result.len();
         (0..len)
@@ -158,6 +160,7 @@ fn clipping<A: Clippable, B: Clippable>(sat: SATResult, shape_a: A, shape_b: B) 
     ContactManifold {
         points: contact_points,
         mtv: sat.mtv,
+        normal: sat.mtv.normalize_or_zero(),
     }
 }
 

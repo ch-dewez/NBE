@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use crate::collision::collision_management::MAX_COLLISION_POINTS;
 use arrayvec::ArrayVec;
 use core_components::transform::Transform;
 use ecs::component::Component;
@@ -11,11 +12,11 @@ pub(crate) type EdgeIndex = usize;
 #[derive(Debug, Clone)]
 pub(crate) struct Face {
     pub normal: Vec3,
-    pub vertices: ArrayVec<Vec3, 4>,
+    pub vertices: ArrayVec<Vec3, MAX_COLLISION_POINTS>,
 }
 
 impl Face {
-    pub fn get_inward_planes(&self) -> ArrayVec<Plane, 4> {
+    pub fn get_inward_planes(&self) -> ArrayVec<Plane, MAX_COLLISION_POINTS> {
         let len = self.vertices.len();
         (0..len)
             .map(|i| (self.vertices[i], self.vertices[(i + 1) % len]))
@@ -104,7 +105,7 @@ pub(crate) trait InertiaTensorGettable {
 pub trait ColliderTrait: InertiaTensorGettable {}
 impl<T> ColliderTrait for T where T: InertiaTensorGettable {}
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Collider {
     CubeCollider(CubeCollider),
 }
@@ -123,7 +124,7 @@ impl Collider {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct CubeCollider {
     pub transform: Transform, // position is offset from local origin
     pub density: Option<f32>,
@@ -208,7 +209,7 @@ impl InertiaTensorGettable for CubeCollider {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Colliders {
     pub colliders: Vec<Collider>,
 }
@@ -240,7 +241,8 @@ impl Colliders {
         self.colliders.push(collider);
     }
 
-    pub fn get_local_inertia_tensor(&self, external_scale: Vec3) -> Mat3 {
+    /// return (mass, center of mass, inertia_tensor)
+    pub fn get_rigid_body_info(&self, external_scale: Vec3) -> (f32, Vec3, Mat3) {
         let mut total_mass = 0.0;
         let mut center_of_mass = Vec3::ZERO;
         for collider in self.colliders.iter() {
@@ -266,10 +268,13 @@ impl Colliders {
             i_total += i_world;
         }
 
-        i_total
+        (total_mass, center_of_mass, i_total)
     }
 
-    pub fn get_local_inv_inertia_tensor(&self, external_scale: Vec3) -> Mat3 {
-        self.get_local_inertia_tensor(external_scale).inverse()
+    /// return (mass, center of mass, inertia_tensor)
+    pub fn get_rigid_body_info_inv(&self, external_scale: Vec3) -> (f32, Vec3, Mat3) {
+        let mut info = self.get_rigid_body_info(external_scale);
+        info.2 = info.2.inverse();
+        info
     }
 }

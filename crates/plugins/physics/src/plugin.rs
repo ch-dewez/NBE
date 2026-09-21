@@ -2,7 +2,7 @@ use engine::plugin::Plugin;
 
 use crate::{
     collision::collision_management::manage_collision,
-    rigidbody::{gravity_update, velocity_update},
+    rigidbody::{gravity_update, rb_update},
 };
 
 #[derive(Default)]
@@ -14,8 +14,8 @@ impl Plugin for PhysicsPlugin {
             .application
             .world
             .add_system(gravity_update)
-            .add_system(velocity_update)
-            .add_system(manage_collision);
+            .add_system(manage_collision)
+            .add_system(rb_update);
     }
     fn uninit<'a, 'b>(&self, _context: engine::plugin::PluginContext<'a, 'b>) {}
 }

@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, thread, time::Duration};
 
 use core_components::transform::Transform;
 use ecs::{
@@ -18,7 +18,7 @@ use opengl::{
 };
 use physics::{
     collision::colliders::{Colliders, CubeCollider},
-    rigidbody::{Velocity, get_rb_components_from_colliders},
+    rigidbody::{Gravity, RigidBody},
 };
 use window::{
     glfw::WindowEvent,
@@ -266,7 +266,8 @@ impl Plugin for GamePlugin {
             let mesh_comp = MeshComponent(mesh.clone());
             let transform = Transform::new(
                 Vec3::new(0.0, -1.0, -2.0),
-                Quat::IDENTITY,
+                //Quat::IDENTITY,
+                Quat::from_rotation_z(0.1),
                 Vec3::new(10.0, 1.0, 10.0),
             );
 
@@ -280,9 +281,9 @@ impl Plugin for GamePlugin {
             // CUBE
             let transform = Transform::new(
                 Vec3::new(0.0, 1.0, -2.0),
-                //Quat::from_xyzw(0.88807, 0.32506, -0.32506, 0.0), // cube standing (more or less) on its vertex
-                Quat::IDENTITY,
-                Vec3::new(1.0, 0.1, 2.0),
+                Quat::from_xyzw(0.88807, 0.32506, -0.32506, 0.0), // cube standing (more or less) on its vertex
+                //Quat::IDENTITY,
+                Vec3::new(1.0, 1.0, 1.0),
             );
 
             let mat_comp = MaterialComponent(dark_color_material.clone());
@@ -293,19 +294,22 @@ impl Plugin for GamePlugin {
             collider.density = Some(4.0);
             let colliders = Colliders::from(collider);
 
-            let inv = colliders.get_local_inv_inertia_tensor(transform.scale);
-            println!("INVERSE TENSOR: {}", inv);
+            let rb = RigidBody::new_from_linear_angular_vel(
+                Vec3::ZERO,
+                //Vec3::new(2.0, 0.0, 0.001),
+                Vec3::ZERO,
+                &colliders,
+                &transform,
+            );
 
-            let vel = Velocity {
-                linear: Vec3::ZERO,
-                angular_momentum: Vec3::new(0.5, 0.0, 0.000),
-
-                inv_inertia_tensor_local: inv,
-            };
-            //
-            //let rb_comps = get_rb_components_from_colliders(&colliders);
-
-            world.spawn_entity((transform, mesh_comp, mat_comp, colliders, vel));
+            world.spawn_entity((
+                transform,
+                mesh_comp,
+                mat_comp,
+                colliders,
+                rb,
+                Gravity::default(),
+            ));
         }
 
         {

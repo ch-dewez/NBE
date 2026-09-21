@@ -1,7 +1,7 @@
 use ecs::component::Component;
 use glam::{Mat3, Mat4, Quat, Vec3};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Transform {
     pub position: Vec3,
     pub rotation: Quat,

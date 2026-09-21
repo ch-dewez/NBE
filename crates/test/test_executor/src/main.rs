@@ -9,8 +9,8 @@ fn main() {
     Application::new()
         .add_plugin::<WindowPlugin>()
         .add_plugin::<OpenGlPlugin>()
-        .add_plugin::<GlRenderer>()
-        .add_plugin::<PhysicsPlugin>()
         .add_plugin::<GamePlugin>()
+        .add_plugin::<PhysicsPlugin>()
+        .add_plugin::<GlRenderer>()
         .run();
 }

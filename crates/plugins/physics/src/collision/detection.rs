@@ -7,20 +7,14 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use crate::{
     collision::{
         colliders::{Collider, Colliders, CubeCollider},
-        collision_management::ContactManifold,
+        collision_management::{CollisionEntity, ContactManifold, RigidBodyEntity, StaticEntity},
         sat::apply_sat_and_clipping,
     },
-    rigidbody::Velocity,
+    rigidbody::RigidBody,
 };
 
-pub type DetectedCollision = Vec<(Entity, Entity, ContactManifold)>;
-pub type EntityWithRb<'a> = (
-    Entity,
-    Ref<'a, Transform>,
-    Ref<'a, Colliders>,
-    Ref<'a, Velocity>,
-);
-pub type StaticEntity<'a> = (Entity, Ref<'a, Transform>, Ref<'a, Colliders>);
+pub type DetectedCollision = (ContactManifold, usize, usize);
+pub type DetectedCollisions<'a> = Vec<DetectedCollision>;
 
 type DetectionArg<'a, T> = (&'a Transform, &'a T);
 type DetectionResult = Option<ContactManifold>;
@@ -36,58 +30,49 @@ fn call_detection<'a>(
     }
 }
 
-pub fn detect_collision(
-    entities_with_rb: Vec<EntityWithRb>,
-    static_entities: Vec<StaticEntity>,
-) -> DetectedCollision {
-    let static_entities_iter = static_entities
-        .iter()
-        .map(|(entity, transform, collider)| (*entity, &**transform, &**collider, None));
-    let rb_entities_iter = entities_with_rb
-        .iter()
-        .map(|(entity, transform, collider, rb)| (*entity, &**transform, &**collider, Some(&**rb)));
+pub fn detect_collision<'a>(entities: &'a Vec<CollisionEntity<'a>>) -> DetectedCollisions<'a> {
+    let mut detected_collision: DetectedCollisions<'a> = DetectedCollisions::new();
 
-    let all_entities_iter = rb_entities_iter.chain(static_entities_iter);
-    let all_entities: Vec<_> = all_entities_iter.collect();
-
-    let _detected_collision: DetectedCollision = DetectedCollision::new();
-
-    for (entity1, transform1, colliders1, _rb1) in all_entities.iter() {
-        for collider1 in colliders1.colliders.iter() {
-            for (entity2, transform2, colliders2, _rb2) in all_entities.iter() {
-                if *entity1 == *entity2 {
+    for (i, entity1) in entities.iter().enumerate() {
+        for collider1 in entity1.get_colliders().colliders.iter() {
+            for (j, entity2) in entities.iter().enumerate().skip(i + 1) {
+                if i == j {
+                    continue;
+                } else if !entity1.has_rb() && !entity2.has_rb() {
+                    // Both entities are static, no need to check collision we can't resolve them
                     continue;
                 }
-                for collider2 in colliders2.colliders.iter() {
-                    let _result = call_detection((transform1, collider1), (transform2, collider2));
+                for collider2 in entity2.get_colliders().colliders.iter() {
+                    let result = call_detection(
+                        (entity1.get_transform(), collider1),
+                        (entity2.get_transform(), collider2),
+                    );
+                    if let Some(mut manifold) = result {
+                        let collision = match (entity1, entity2) {
+                            (CollisionEntity::RigidBody(_), CollisionEntity::RigidBody(_))
+                            | (CollisionEntity::RigidBody(_), CollisionEntity::StaticEntity(_)) => {
+                                (manifold, i, j)
+                            }
+                            (CollisionEntity::StaticEntity(_), CollisionEntity::RigidBody(_)) => {
+                                manifold.mtv *= -1.0;
+                                manifold.normal *= -1.0;
+                                (manifold, j, i)
+                            }
+                            (
+                                CollisionEntity::StaticEntity(_),
+                                CollisionEntity::StaticEntity(_),
+                            ) => {
+                                unreachable!("Static Static ent collision response, can't happen")
+                            }
+                        };
+                        detected_collision.push(collision);
+                    }
                 }
             }
         }
     }
 
-    // all_entities
-    //     .par_iter()
-    //     .for_each(|(entity1, transform1, colliders1, _rb1)| {
-    //         colliders1.colliders.par_iter().for_each(|collider1| {
-    //             all_entities
-    //                 .par_iter()
-    //                 .for_each(|(entity2, transform2, colliders2, _rb2)| {
-    //                     if *entity1 != *entity2 {
-    //                     } else {
-    //                         colliders2.colliders.par_iter().for_each(|collider2| {
-    //                             let _result = call_detection(
-    //                                 (transform1, collider1),
-    //                                 (transform2, collider2),
-    //                             );
-    //                         });
-    //                     }
-    //                 });
-    //         });
-    //     });
-
-    Default::default()
-
-    //unimplemented!()
+    detected_collision
 }
 
 fn cube_cube_detection(

@@ -139,7 +139,17 @@ pub fn sat<A: SATable, B: SATable>(shape_a: A, shape_b: B) -> Option<SATResult> 
             (overlap2, axis.axis, false)
         };
 
-        if overlap > current_overlap {
+        // Prefer Face axes over Edge-Edge axes unless Edge-Edge overlap is significantly smaller
+        const EDGE_BIAS: f32 = 0.90; // Edge overlap must be < 90% of Face overlap
+
+        let is_edge_feature = matches!(axis.feature, SATAxisFeature::EdgeEdge { .. });
+        let effective_overlap = if is_edge_feature {
+            current_overlap / EDGE_BIAS
+        } else {
+            current_overlap
+        };
+
+        if overlap > effective_overlap {
             overlap = current_overlap;
             overlap_axis = current_axis;
             current_feature = axis.feature;
@@ -209,7 +219,9 @@ impl SATable for CubeCollider {
                 };
 
                 let cross = my_axis.axis.cross(other_axis.axis);
-                if let Some(normalized_cross) = cross.try_normalize() {
+                if let Some(normalized_cross) = cross.try_normalize()
+                    && cross.length_squared() > 1e-4
+                {
                     if all_axis_closure(SATAxis {
                         axis: normalized_cross,
                         feature: SATAxisFeature::EdgeEdge {
