@@ -1,8 +1,14 @@
-use std::{any::{Any, TypeId}, cell::RefCell};
-use crate::{archetype::ArchetypeRow, component::{Component, ComponentId, get_component_id}};
+use crate::{
+    archetype::ArchetypeRow,
+    component::{Component, ComponentId, get_component_id},
+};
+use std::{
+    any::{Any, TypeId},
+    cell::UnsafeCell,
+};
 
 pub trait ComponentStorageErased: Any {
-    fn as_any_ref(&self) -> & dyn Any;
+    fn as_any_ref(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     fn get_component_id(&self) -> ComponentId;
@@ -15,16 +21,23 @@ pub trait ComponentStorageErased: Any {
     fn get_pointer(&self, index: usize) -> *const u8;
     fn get_pointer_mut(&mut self, index: usize) -> *mut u8;
 
-    fn new_vec_of_same_type(&self) -> Box<RefCell<dyn ComponentStorageErased>>;
+    fn new_vec_of_same_type(&self) -> Box<dyn ComponentStorageErased>;
 
-    fn copy_element_from_another_storage(&mut self, source_row: ArchetypeRow, dst_row: ArchetypeRow, other: &dyn ComponentStorageErased);
+    fn copy_element_from_another_storage(
+        &mut self,
+        source_row: ArchetypeRow,
+        dst_row: ArchetypeRow,
+        other: &dyn ComponentStorageErased,
+    );
+
+    fn get_len(&self) -> usize;
 }
 
-impl<T: Component> ComponentStorageErased for Vec<T>{
-    fn as_any_ref(&self) -> & dyn Any{
+impl<T: Component> ComponentStorageErased for Vec<UnsafeCell<T>> {
+    fn as_any_ref(&self) -> &dyn Any {
         self
     }
-    fn as_any_mut(&mut self) -> &mut dyn Any{
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
@@ -32,20 +45,24 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
         get_component_id::<T>()
     }
 
-    fn swap_remove_erased(&mut self, index: usize){
+    fn swap_remove_erased(&mut self, index: usize) {
         self.swap_remove(index);
     }
 
-    unsafe fn soft_swap_remove_erased(&mut self, index: usize){
-        let last_index = self.len()-1;
+    unsafe fn soft_swap_remove_erased(&mut self, index: usize) {
+        let last_index = self.len() - 1;
         self.swap(index, last_index);
-        unsafe{
-            self.set_len(self.len()-1);
+        unsafe {
+            self.set_len(self.len() - 1);
         }
     }
 
     fn get_size_of_element(&self) -> usize {
         size_of::<T>()
+    }
+
+    fn get_len(&self) -> usize {
+        self.len()
     }
 
     fn get_pointer(&self, index: usize) -> *const u8 {
@@ -55,21 +72,26 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
         (&raw mut self[index]) as *mut u8
     }
 
-    fn new_vec_of_same_type(&self) -> Box<RefCell<dyn ComponentStorageErased>>{
-        let vec_of_type: Vec<T> = Vec::new();
-        Box::new(RefCell::new(vec_of_type))
+    fn new_vec_of_same_type(&self) -> Box<dyn ComponentStorageErased> {
+        let vec_of_type: Vec<UnsafeCell<T>> = Vec::new();
+        Box::new(vec_of_type)
     }
 
     /// memcpy to dst_row,
     /// if dst_row == len -> first reserve and set_len, then memcpy
-    fn copy_element_from_another_storage(&mut self, source_row: ArchetypeRow, dst_row: ArchetypeRow, other: & dyn ComponentStorageErased){
+    fn copy_element_from_another_storage(
+        &mut self,
+        source_row: ArchetypeRow,
+        dst_row: ArchetypeRow,
+        other: &dyn ComponentStorageErased,
+    ) {
         let size: usize = self.get_size_of_element();
         let src: *const u8 = other.get_pointer(source_row);
         let dst;
 
-        if dst_row < self.len(){
+        if dst_row < self.len() {
             dst = self.get_pointer_mut(dst_row);
-        }else if dst_row == self.len(){
+        } else if dst_row == self.len() {
             if self.capacity() < self.len() + 1 {
                 self.reserve(1);
             }
@@ -79,18 +101,19 @@ impl<T: Component> ComponentStorageErased for Vec<T>{
                 self.set_len(self.len() + 1);
             }
             dst = self.get_pointer_mut(dst_row);
-        }else {
-            panic!("Trying to copy data to this component storage but dst row is out of bounds (and not next row)");
+        } else {
+            panic!(
+                "Trying to copy data to this component storage but dst row is out of bounds (and not next row)"
+            );
         }
 
-        debug_assert_eq!(other.type_id(), TypeId::of::<Vec<T>>());
+        debug_assert_eq!(other.type_id(), TypeId::of::<Vec<UnsafeCell<T>>>());
 
         // SAFETY: dst is allocated, the size has been calculated, we asserted that the type are
-        // the same 
+        // the same
         unsafe {
             // pointer of u8 so size = count
             std::ptr::copy_nonoverlapping(src, dst, size);
         }
     }
 }
-

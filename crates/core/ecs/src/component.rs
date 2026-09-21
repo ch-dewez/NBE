@@ -1,4 +1,4 @@
-use std::{any::TypeId, cell::RefCell};
+use std::{any::TypeId, cell::UnsafeCell};
 
 use macro_utils::repeat_macro_with_argument;
 
@@ -34,7 +34,7 @@ pub trait ComponentTupple {
     /// add empty component storage to the container
     fn add_component_storage(
         signature: &mut ArchetypeSignature,
-        container: &mut Vec<Box<RefCell<dyn ComponentStorageErased>>>,
+        container: &mut Vec<Box<dyn ComponentStorageErased>>,
     ) -> Result<(), AddSignatureError>;
 
     fn component_id_match_any_component(id: ComponentId) -> bool;
@@ -73,14 +73,10 @@ impl<A: Component> ComponentTupple for A {
 
     fn create_archetype() -> Archetype {
         let signature = Self::get_signature();
-        let mut components: Vec<Box<RefCell<dyn ComponentStorageErased>>> =
-            vec![Box::new(RefCell::new(Vec::<A>::new()))];
+        let mut components: Vec<Box<dyn ComponentStorageErased>> =
+            vec![Box::new(Vec::<UnsafeCell<A>>::new())];
 
-        components.sort_by(|a, b| {
-            a.borrow()
-                .get_component_id()
-                .cmp(&b.borrow().get_component_id())
-        });
+        components.sort_by(|a, b| a.get_component_id().cmp(&b.get_component_id()));
 
         Archetype {
             signature,
@@ -96,11 +92,11 @@ impl<A: Component> ComponentTupple for A {
     #[allow(unused_variables)]
     fn add_component_storage(
         signature: &mut ArchetypeSignature,
-        container: &mut Vec<Box<RefCell<dyn ComponentStorageErased>>>,
+        container: &mut Vec<Box<dyn ComponentStorageErased>>,
     ) -> Result<(), AddSignatureError> {
         let index = signature.add_sorted::<A>()?;
-        let new_component_storage: Vec<A> = Vec::new();
-        container.insert(index, Box::new(RefCell::new(new_component_storage)));
+        let new_component_storage: Vec<UnsafeCell<A>> = Vec::new();
+        container.insert(index, Box::new(new_component_storage));
 
         Ok(())
     }
@@ -162,7 +158,7 @@ macro_rules! impl_component_tupple_for_component_tupple_tupple {
 
             fn create_archetype()-> Archetype{
                 let mut signature = ArchetypeSignature::default();
-                let mut components: Vec<Box<RefCell<dyn ComponentStorageErased>>> = Vec::new();
+                let mut components: Vec<Box<dyn ComponentStorageErased>> = Vec::new();
                 let _ = Self::add_component_storage(&mut signature, &mut components).unwrap();
 
                 // no need to sort, already sorted in add_component_storage
@@ -180,7 +176,7 @@ macro_rules! impl_component_tupple_for_component_tupple_tupple {
 
             #[allow(unused_mut)]
             #[allow(unused_variables)]
-            fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<RefCell<dyn ComponentStorageErased>>>) -> Result<(), AddSignatureError>{
+            fn add_component_storage(signature: &mut ArchetypeSignature, container: &mut Vec<Box<dyn ComponentStorageErased>>) -> Result<(), AddSignatureError>{
                 $(
                     $params::add_component_storage(signature, container)?;
                 )*

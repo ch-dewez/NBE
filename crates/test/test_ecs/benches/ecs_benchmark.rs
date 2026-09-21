@@ -1,5 +1,12 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use ecs::{component::Component, world::World, query::{Query, With, Without}};
+// This file was made by ai, I don't want to "debug" the warning
+#![allow(dead_code)]
+
+use criterion::{Criterion, criterion_group, criterion_main};
+use ecs::{
+    component::Component,
+    query::{Query, With, Without},
+    world::World,
+};
 
 macro_rules! define_components {
     ($($name:ident),*) => {
@@ -12,10 +19,8 @@ macro_rules! define_components {
 }
 
 define_components!(
-    C1, C2, C3, C4, C5, C6, C7, C8, C9, C10,
-    C11, C12, C13, C14, C15, C16, C17, C18, C19, C20,
-    C21, C22, C23, C24, C25, C26, C27, C28, C29, C30,
-    C31, C32
+    C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19, C20, C21,
+    C22, C23, C24, C25, C26, C27, C28, C29, C30, C31, C32
 );
 
 fn spawn_varied_entity(world: &mut World, i: u32) -> ecs::entity::Entity {
@@ -30,23 +35,51 @@ fn spawn_varied_entity(world: &mut World, i: u32) -> ecs::entity::Entity {
         7 => world.spawn_entity((C28(i), C29(i), C30(i), C31(i), C32(i))),
         8 => world.spawn_entity((C1(i), C5(i), C10(i), C15(i), C20(i), C25(i), C30(i))),
         _ => world.spawn_entity((
-            C1(i), C2(i), C3(i), C4(i), C5(i), C6(i), C7(i), C8(i),
-            C9(i), C10(i), C11(i), C12(i), C13(i), C14(i), C15(i), C16(i),
-            C17(i), C18(i), C19(i), C20(i), C21(i), C22(i), C23(i), C24(i),
-            C25(i), C26(i), C27(i), C28(i), C29(i), C30(i), C31(i), C32(i)
-        ))
+            C1(i),
+            C2(i),
+            C3(i),
+            C4(i),
+            C5(i),
+            C6(i),
+            C7(i),
+            C8(i),
+            C9(i),
+            C10(i),
+            C11(i),
+            C12(i),
+            C13(i),
+            C14(i),
+            C15(i),
+            C16(i),
+            C17(i),
+            C18(i),
+            C19(i),
+            C20(i),
+            C21(i),
+            C22(i),
+            C23(i),
+            C24(i),
+            C25(i),
+            C26(i),
+            C27(i),
+            C28(i),
+            C29(i),
+            C30(i),
+            C31(i),
+            C32(i),
+        )),
     };
     entity
 }
 
 fn system_1(query: Query<(&mut C1, &C2)>) {
-    for (mut c1, c2) in query.into_iter() {
+    for (c1, c2) in query.into_iter() {
         c1.0 += c2.0;
     }
 }
 
 fn system_2(query: Query<(&C3, &mut C4), With<C5>>) {
-    for (c3, mut c4) in query.into_iter() {
+    for (c3, c4) in query.into_iter() {
         c4.0 += c3.0;
     }
 }
@@ -57,13 +90,77 @@ fn system_3(query: Query<(&C28, &C29), Without<C1>>) {
     }
 }
 
-fn system_4(query: Query<(
-    &C1, &C2, &C3, &C4, &C5, &C6, &C7, &C8,
-    &C9, &C10, &C11, &C12, &C13, &C14, &C15, &C16,
-    &C17, &C18, &C19, &C20, &C21, &C22, &C23, &C24,
-    &C25, &C26, &C27, &C28, &C29, &C30, &C31, &C32
-)>) {
-    for (c1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, c32) in query.into_iter() {
+fn system_4(
+    query: Query<(
+        &C1,
+        &C2,
+        &C3,
+        &C4,
+        &C5,
+        &C6,
+        &C7,
+        &C8,
+        &C9,
+        &C10,
+        &C11,
+        &C12,
+        &C13,
+        &C14,
+        &C15,
+        &C16,
+        &C17,
+        &C18,
+        &C19,
+        &C20,
+        &C21,
+        &C22,
+        &C23,
+        &C24,
+        &C25,
+        &C26,
+        &C27,
+        &C28,
+        &C29,
+        &C30,
+        &C31,
+        &C32,
+    )>,
+) {
+    for (
+        c1,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        c32,
+    ) in query.into_iter()
+    {
         let _ = c1.0 + c32.0;
     }
 }
@@ -104,7 +201,7 @@ fn bench_ecs(c: &mut Criterion) {
             for i in 0..count {
                 spawn_varied_entity(&mut world, i);
             }
-            
+
             world.add_system(system_1);
             world.add_system(system_2);
             world.add_system(system_3);

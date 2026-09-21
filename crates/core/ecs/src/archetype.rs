@@ -3,9 +3,12 @@ use thiserror::Error;
 use crate::{
     component::{Component, ComponentId, ComponentTupple, get_component_id},
     component_storage::ComponentStorageErased,
-    entity::{Entity}
+    entity::Entity,
 };
-use std::{cell::{self, Ref, RefCell, RefMut}, collections::HashMap};
+use std::{
+    cell::{self, UnsafeCell},
+    collections::HashMap,
+};
 
 #[derive(Default, Clone, PartialEq, Eq, Hash)]
 pub struct ArchetypeSignature(pub Vec<ComponentId>); // need to be always sorted
@@ -36,7 +39,7 @@ impl ArchetypeSignature {
     pub fn remove<T: Component>(&mut self) -> Result<(), RemoveSignatureError> {
         self.remove_id(get_component_id::<T>())
     }
-    
+
     pub fn remove_id(&mut self, id: ComponentId) -> Result<(), RemoveSignatureError> {
         self.0.remove(
             self.0
@@ -71,7 +74,7 @@ pub type ArchetypeId = usize;
 
 pub struct Archetype {
     pub(crate) signature: ArchetypeSignature, // the index of the type id represent the collumn
-    pub(crate) components: Vec<Box<RefCell<dyn ComponentStorageErased>>>, // each collumns = a component
+    pub(crate) components: Vec<Box<dyn ComponentStorageErased>>, // each collumns = a component
 
     pub(crate) next_row: ArchetypeRow, // each row = entity
     pub(crate) entity_to_row: HashMap<Entity, ArchetypeRow>,
@@ -90,7 +93,7 @@ pub enum AccessComponentError {
     BorrowError(#[from] cell::BorrowError),
     #[error("Cannot borrow the data mutably, it is already borrowed")]
     BorrowMutError(#[from] cell::BorrowMutError),
-} 
+}
 
 impl Archetype {
     pub fn new_blanck() -> Self {
@@ -106,11 +109,10 @@ impl Archetype {
     pub fn new_from_archetype_add<T: ComponentTupple>(
         archetype: &Archetype,
     ) -> Result<Self, AddSignatureError> {
-        let mut components: Vec<Box<RefCell<dyn ComponentStorageErased>>> = Default::default();
+        let mut components: Vec<Box<dyn ComponentStorageErased>> = Default::default();
 
         for component_storage in &archetype.components {
-            let borrowed = component_storage.borrow();
-            components.push(borrowed.new_vec_of_same_type());
+            components.push(component_storage.new_vec_of_same_type());
         }
 
         let mut signature = archetype.signature.clone();
@@ -122,7 +124,7 @@ impl Archetype {
 
             next_row: 0,
             entity_to_row: Default::default(),
-            row_to_entity: Default::default()
+            row_to_entity: Default::default(),
         })
     }
 
@@ -132,14 +134,13 @@ impl Archetype {
         let mut signature = archetype.signature.clone();
         T::remove_signature(&mut signature)?;
 
-        let mut components: Vec<Box<RefCell<dyn ComponentStorageErased>>> = Default::default();
+        let mut components: Vec<Box<dyn ComponentStorageErased>> = Default::default();
 
         for (i, component_storage) in archetype.components.iter().enumerate() {
             if T::component_id_match_any_component(archetype.signature.0[i]) {
                 continue;
             }
-            let borrowed = component_storage.borrow();
-            components.push(borrowed.new_vec_of_same_type());
+            components.push(component_storage.new_vec_of_same_type());
         }
 
         Ok(Archetype {
@@ -148,17 +149,20 @@ impl Archetype {
 
             next_row: 0,
             entity_to_row: Default::default(),
-            row_to_entity: Default::default()
+            row_to_entity: Default::default(),
         })
     }
 
     /// The row are unintialized
     /// you NEED to initialize the components just after this.
     /// if the signature is [], there's no need because there's no component
-    pub fn add_entity<T: ComponentTupple>(&mut self, entity: Entity, component_tupple: T) -> ArchetypeRow {
+    pub fn add_entity<T: ComponentTupple>(
+        &mut self,
+        entity: Entity,
+        component_tupple: T,
+    ) -> ArchetypeRow {
         let row = self.next_row;
-        self.entity_to_row
-            .insert(entity, row);
+        self.entity_to_row.insert(entity, row);
 
         self.row_to_entity.push(entity);
 
@@ -172,11 +176,10 @@ impl Archetype {
     /// update entity_to_row, row_to_entity and next_row but does not increase the size of the
     /// component vectors
     /// self.components[0][row] will panic.
-    /// After calling this function, the caller needs to manually increase the size
+    /// After calling this function, the caller needs to manually increase the size or call set_component
     pub unsafe fn add_entity_no_push(&mut self, entity: Entity) -> ArchetypeRow {
         let row = self.next_row;
-        self.entity_to_row
-            .insert(entity, row);
+        self.entity_to_row.insert(entity, row);
 
         self.row_to_entity.push(entity);
 
@@ -184,7 +187,6 @@ impl Archetype {
 
         row
     }
-
 
     pub fn get_row(&self, entity: Entity) -> Option<ArchetypeRow> {
         self.entity_to_row.get(&entity).cloned()
@@ -194,7 +196,7 @@ impl Archetype {
         self.row_to_entity.get(row).cloned()
     }
 
-    fn removed_entity_map_update_from_row(&mut self, row: usize){
+    fn removed_entity_map_update_from_row(&mut self, row: usize) {
         let last_entity = self.row_to_entity[self.next_row - 1];
         self.entity_to_row.insert(last_entity, row);
 
@@ -206,9 +208,9 @@ impl Archetype {
     }
 
     /// remove the entity from the maps, if the entity does not exist, it does nothing
-    fn removed_entity_map_update_from_entity(&mut self, entity: Entity){
+    fn removed_entity_map_update_from_entity(&mut self, entity: Entity) {
         let current_row = self.entity_to_row.get(&entity);
-        if current_row.is_none(){
+        if current_row.is_none() {
             return;
         }
         let current_row = *current_row.unwrap();
@@ -222,7 +224,7 @@ impl Archetype {
         let _ = self.row_to_entity.pop();
     }
 
-    pub unsafe fn remove_entity_no_storage_update(&mut self, entity: Entity){
+    pub unsafe fn remove_entity_no_storage_update(&mut self, entity: Entity) {
         self.removed_entity_map_update_from_entity(entity);
         self.next_row -= 1;
     }
@@ -235,7 +237,7 @@ impl Archetype {
 
     pub fn remove_row(&mut self, row: ArchetypeRow) {
         for component_storage in &mut self.components {
-            component_storage.borrow_mut().swap_remove_erased(row);
+            component_storage.swap_remove_erased(row);
         }
 
         self.removed_entity_map_update_from_row(row);
@@ -248,7 +250,7 @@ impl Archetype {
     pub unsafe fn soft_remove(&mut self, row: ArchetypeRow) {
         for component_storage in &mut self.components {
             unsafe {
-                component_storage.borrow_mut().soft_swap_remove_erased(row);
+                component_storage.soft_swap_remove_erased(row);
             }
         }
 
@@ -266,11 +268,11 @@ impl Archetype {
     ) {
         for (i, component_storage) in self.components.iter_mut().enumerate() {
             if except_col.contains(&i) {
-                component_storage.borrow_mut().swap_remove_erased(row);
+                component_storage.swap_remove_erased(row);
                 continue;
             }
             unsafe {
-                component_storage.borrow_mut().soft_swap_remove_erased(row);
+                component_storage.soft_swap_remove_erased(row);
             }
         }
 
@@ -280,7 +282,10 @@ impl Archetype {
         self.next_row -= 1;
     }
 
-    pub fn get_component<T: Component>(&'_ self, entity: Entity) -> Result<Ref<'_, T>, AccessComponentError>{
+    pub fn get_component<T: Component>(
+        &'_ self,
+        entity: Entity,
+    ) -> Result<&T, AccessComponentError> {
         match self.get_row(entity) {
             Some(row) => self.get_component_row::<T>(row),
             None => Err(AccessComponentError::EntityNotFound),
@@ -289,72 +294,84 @@ impl Archetype {
     pub fn get_component_row<T: Component>(
         &'_ self,
         row: ArchetypeRow,
-    ) -> Result<Ref<'_, T>, AccessComponentError> {
+    ) -> Result<&T, AccessComponentError> {
         let col = self
             .signature
             .find::<T>()
             .ok_or(AccessComponentError::EntityNotFound)?;
-        let component_storage_ref_dyn = self.components[col].try_borrow()?;
-        let component_ref: Ref<'_, T> = Ref::filter_map(
-            component_storage_ref_dyn,
-            |e | e
-                .as_any_ref()
-                .downcast_ref::<Vec<T>>()
-                .map(|e| &e[row])
-        ).map_err(|_e| AccessComponentError::SignatureTypeUnsynced)?;
-        Ok(component_ref)
+        self.components[col]
+            .as_any_ref()
+            .downcast_ref::<Vec<UnsafeCell<T>>>()
+            .map(|e| unsafe { e[row].get().as_ref_unchecked() })
+            .ok_or(AccessComponentError::SignatureTypeUnsynced)
     }
 
     pub fn get_component_mut<T: Component>(
-        &'_ self,
+        &'_ mut self,
         entity: Entity,
-    ) -> Result<RefMut<'_, T>, AccessComponentError> {
+    ) -> Result<&mut T, AccessComponentError> {
         match self.get_row(entity) {
             Some(row) => self.get_component_row_mut::<T>(row),
             None => Err(AccessComponentError::EntityNotFound),
         }
     }
     pub fn get_component_row_mut<T: Component>(
-        &'_ self,
+        &'_ mut self,
         row: ArchetypeRow,
-    ) -> Result<RefMut<'_, T>, AccessComponentError> {
+    ) -> Result<&mut T, AccessComponentError> {
         let col = self
             .signature
             .find::<T>()
             .ok_or(AccessComponentError::ComponentNotInArchetype)?;
-        let component_storage_ref_dyn = self.components[col].try_borrow_mut()?;
-        let component_ref = RefMut::filter_map(
-            component_storage_ref_dyn,
-            |e | e
-                .as_any_mut()
-                .downcast_mut::<Vec<T>>()
-                .map(|e| &mut e[row])
-        ).map_err(|_e| AccessComponentError::SignatureTypeUnsynced)?;
-        Ok(component_ref)
 
-        // Ok(&mut (self.components[col]
-        //     .as_any_mut()
-        //     .downcast_mut::<Vec<T>>()
-        //     .ok_or(AccessComponentError::SignatureTypeUnsynced)?)[row])
+        self.components[col]
+            .as_any_mut()
+            .downcast_mut::<Vec<UnsafeCell<T>>>()
+            .map(|e| e[row].get_mut())
+            .ok_or(AccessComponentError::SignatureTypeUnsynced)
+    }
+
+    /// uses unsafe cell to get the component
+    /// the caller has the responsibility to ensure that no component infringe borrowing rules
+    pub unsafe fn get_component_row_mut_unsafe<T: Component>(
+        &self,
+        row: ArchetypeRow,
+    ) -> Result<&mut T, AccessComponentError> {
+        let col = self
+            .signature
+            .find::<T>()
+            .ok_or(AccessComponentError::ComponentNotInArchetype)?;
+
+        self.components[col]
+            .as_any_ref()
+            .downcast_ref::<Vec<UnsafeCell<T>>>()
+            // SAFETY: responsibility is in the caller
+            .map(|e| unsafe { e[row].get().as_mut_unchecked() })
+            .ok_or(AccessComponentError::SignatureTypeUnsynced)
     }
 
     /// set the component
     /// if the row == len, it pushes
-    pub fn set_component<T: Component>(&self, entity: Entity, component: T) -> Result<(), AccessComponentError> {
+    pub fn set_component<T: Component>(
+        &mut self,
+        entity: Entity,
+        component: T,
+    ) -> Result<(), AccessComponentError> {
+        let row = self
+            .get_row(entity)
+            .ok_or(AccessComponentError::EntityNotFound)?;
         let col = self
             .signature
             .find::<T>()
             .ok_or(AccessComponentError::ComponentNotInArchetype)?;
-        let row = self.entity_to_row.get(&entity).cloned().ok_or(AccessComponentError::EntityNotFound)?;
-        let mut borrowed = self.components[col].try_borrow_mut()?;
-        let component_storage = borrowed
-            .as_any_mut()
-            .downcast_mut::<Vec<T>>()
-            .ok_or(AccessComponentError::SignatureTypeUnsynced)?;
-        if component_storage.len() == row {
-            component_storage.push(component);
+        if self.components[col].get_len() == row {
+            self.components[col]
+                .as_any_mut()
+                .downcast_mut::<Vec<UnsafeCell<T>>>()
+                .ok_or(AccessComponentError::SignatureTypeUnsynced)?
+                .push(UnsafeCell::new(component));
         } else {
-            component_storage[row] = component;
+            *self.get_component_mut::<T>(entity)? = component
         }
         Ok(())
     }
