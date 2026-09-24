@@ -267,7 +267,7 @@ impl Plugin for GamePlugin {
             let transform = Transform::new(
                 Vec3::new(0.0, -1.0, -2.0),
                 //Quat::IDENTITY,
-                Quat::from_rotation_z(0.1),
+                Quat::from_rotation_z(0.52),
                 Vec3::new(10.0, 1.0, 10.0),
             );
 
@@ -313,7 +313,7 @@ impl Plugin for GamePlugin {
         }
 
         {
-            // CUBE
+            // CUBE 2
             let transform = Transform::new(
                 Vec3::new(0.0, 3.0, -2.0),
                 //Quat::from_xyzw(0.88807, 0.32506, -0.32506, 0.0), // cube standing (more or less) on its vertex
@@ -348,7 +348,7 @@ impl Plugin for GamePlugin {
         }
 
         {
-            let transform = Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::new(1.0, 1.0, 1.0));
+            let transform = Transform::new(Vec3::Y, Quat::IDENTITY, Vec3::new(1.0, 1.0, 1.0));
             let camera = Camera::new_perspective_default(16.0 / 9.0);
             let camera_movement = CameraMovementComponent {
                 speed: 2.0,
