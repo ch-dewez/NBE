@@ -19,6 +19,7 @@ members = [
   "crates/libs/build_tools/assets_management",
   "crates/plugins/core_components",
   "crates/libs/macro_utils",
+  "crates/libs/logger",
 ]
 resolver = "3"
 
@@ -29,6 +30,8 @@ glam = "0.33.1"
 engine = { path = "crates/core/engine" }
 ecs = { path = "crates/core/ecs" }
 macro_utils = { path = "crates/libs/macro_utils" }
+
+logger = { path = "crates/libs/logger" }
 
 window = { path = "crates/plugins/window" }
 opengl = { path = "crates/plugins/opengl" }
