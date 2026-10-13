@@ -52,9 +52,9 @@ fn fps_printer(dt: Res<DeltaTimeS>) {
 }
 
 #[derive(Default)]
-pub struct GamePlugin {}
+pub struct MinimalPlugin {}
 
-impl Plugin for GamePlugin {
+impl Plugin for MinimalPlugin {
     fn init<'a, 'b>(&self, context: engine::plugin::PluginContext<'a, 'b>) {
         // The type is now Box<[(Vec3, Vec3)]> where:
         // - The first Vec3 is Position (X, Y, Z)

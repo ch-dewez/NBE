@@ -1330,18 +1330,6 @@ dependencies = [
 name = "test_executor"
 version = "0.1.0"
 dependencies = [
- "engine",
- "gl_renderer",
- "logger",
- "opengl",
- "test_project",
- "window",
-]
-
-[[package]]
-name = "test_project"
-version = "0.1.0"
-dependencies = [
  "assets_management",
  "core_components",
  "ecs",

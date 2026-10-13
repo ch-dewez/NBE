@@ -6,7 +6,6 @@ members = [
   "crates/plugins/physics",
   "crates/plugins/renderer",
   "crates/project_manager",
-  "crates/test/test_project",
   "crates/test/test_executor",
   "crates/executors/game_executor",
   "crates/plugin_templates/physics_template",
