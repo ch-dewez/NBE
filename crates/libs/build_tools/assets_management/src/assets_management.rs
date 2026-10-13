@@ -4,14 +4,18 @@
 //
 //
 
-
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-pub fn generate_asset_enum(input_dir_name: &str, enum_name: &str, method_name: &str, is_string: bool) {
-println!("cargo:rerun-if-changed={}", input_dir_name);
+pub fn generate_asset_enum(
+    input_dir_name: &str,
+    enum_name: &str,
+    method_name: &str,
+    is_string: bool,
+) {
+    println!("cargo:rerun-if-changed={}", input_dir_name);
 
     let input_dir = Path::new(input_dir_name);
     let mut discovered_files: Vec<(String, PathBuf)> = Vec::new();
@@ -20,7 +24,7 @@ println!("cargo:rerun-if-changed={}", input_dir_name);
         for entry in fs::read_dir(input_dir).unwrap() {
             let entry = entry.unwrap();
             let path = entry.path();
-            
+
             if path.is_file() {
                 let stem = path.file_stem().unwrap().to_str().unwrap().to_string();
                 // Pass the absolute or canonicalized path to avoid macro resolution issues
@@ -31,10 +35,16 @@ println!("cargo:rerun-if-changed={}", input_dir_name);
     }
 
     // Forward the files to the core generator
-    generate_asset_enum_from_paths(input_dir_name, discovered_files, enum_name, method_name, is_string);
+    generate_asset_enum_from_paths(
+        input_dir_name,
+        discovered_files,
+        enum_name,
+        method_name,
+        is_string,
+    );
 }
 
-/// Core generation logic that accepts explicit file paths. 
+/// Core generation logic that accepts explicit file paths.
 /// Perfect for both folder scanning and target-directory shader compilation.
 pub fn generate_asset_enum_from_paths(
     output_filename: &str,
@@ -47,17 +57,21 @@ pub fn generate_asset_enum_from_paths(
     // Clean up characters like '.' or '/' from the filename if passed as a directory path
     let safe_filename = output_filename.replace(['.', '/', '\\'], "_");
     let dest_path = Path::new(&out_dir).join(format!("generated_{}.rs", safe_filename));
-    
+
     let mut enum_variants = String::new();
     let mut match_arms = String::new();
 
     for (stem, path) in files {
         let variant_name = stem.replace(['.', '-'], "_");
         let cache_path_str = path.to_str().unwrap().replace('\\', "/");
-        
+
         enum_variants.push_str(&format!("    {},\n", variant_name));
 
-        let macro_name = if is_string { "include_str!" } else { "include_bytes!" };
+        let macro_name = if is_string {
+            "include_str!"
+        } else {
+            "include_bytes!"
+        };
 
         match_arms.push_str(&format!(
             "            {}::{} => {}(\"{}\"),\n",
@@ -65,7 +79,11 @@ pub fn generate_asset_enum_from_paths(
         ));
     }
 
-    let return_type = if is_string { "&'static str" } else { "&'static [u8]" };
+    let return_type = if is_string {
+        "&'static str"
+    } else {
+        "&'static [u8]"
+    };
     let generated_code = format!(
         "#[derive(Debug, Copy, Clone, PartialEq, Eq)]\n\
          pub enum {} {{\n\

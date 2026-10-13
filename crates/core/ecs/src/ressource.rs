@@ -1,7 +1,14 @@
-use std::{any::{Any, TypeId}, cell::{Ref, RefMut}, collections::HashSet};
+use std::{
+    any::{Any, TypeId},
+    cell::{Ref, RefMut},
+    collections::HashSet,
+};
 
-use crate::{system::{SystemDependency, SystemParam}, system_local::LocalStorage, world::World};
-
+use crate::{
+    system::{SystemDependency, SystemParam},
+    system_local::LocalStorage,
+    world::World,
+};
 
 pub trait Ressource: Any + 'static {}
 pub type RessourceId = TypeId;
@@ -37,7 +44,7 @@ impl<'a, T: Ressource> SystemParam for Res<'a, T> {
     type Item<'w, 'l> = Res<'w, T>;
     type Cache = ();
 
-    fn init(_world:&World, _local: &mut LocalStorage) {}
+    fn init(_world: &World, _local: &mut LocalStorage) {}
 
     fn retrieve<'w, 'l>(world: &'w World, _local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
         Self::retrieve_no_local(world)
@@ -51,10 +58,13 @@ impl<'a, T: Ressource> SystemParam for Res<'a, T> {
         Some(())
     }
 
-    fn from_cache<'w, 'l>(_cache: &Self::Cache, world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
+    fn from_cache<'w, 'l>(
+        _cache: &Self::Cache,
+        world: &'w World,
+        local: &'l LocalStorage,
+    ) -> Option<Self::Item<'w, 'l>> {
         Self::retrieve(world, local)
     }
-
 
     fn get_dependencies(_world: &World, _local: &LocalStorage) -> HashSet<SystemDependency> {
         let mut result = HashSet::with_capacity(1);
@@ -62,9 +72,12 @@ impl<'a, T: Ressource> SystemParam for Res<'a, T> {
         result
     }
 
-    fn get_dependencies_from_cache(world: &World, _cache: &Self::Cache, local: &LocalStorage) -> HashSet<SystemDependency>{
+    fn get_dependencies_from_cache(
+        world: &World,
+        _cache: &Self::Cache,
+        local: &LocalStorage,
+    ) -> HashSet<SystemDependency> {
         Self::get_dependencies(world, local)
-
     }
 }
 
@@ -72,24 +85,29 @@ impl<'a, T: Ressource> SystemParam for ResMut<'a, T> {
     type Item<'w, 'l> = ResMut<'w, T>;
     type Cache = ();
 
-    fn init(_world:&World, _local: &mut LocalStorage) {}
+    fn init(_world: &World, _local: &mut LocalStorage) {}
 
     fn retrieve<'w, 'l>(world: &'w World, _local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
         Self::retrieve_no_local(world)
     }
 
     fn retrieve_no_local<'w, 'l>(world: &'w World) -> Option<Self::Item<'w, 'l>> {
-        world.get_ressource_mut::<T>().map(|reference: RefMut<'w, T>| ResMut::<'w, T>(reference))
+        world
+            .get_ressource_mut::<T>()
+            .map(|reference: RefMut<'w, T>| ResMut::<'w, T>(reference))
     }
 
     fn cache(_world: &World, _local: &LocalStorage) -> Option<Self::Cache> {
         Some(())
     }
 
-    fn from_cache<'w, 'l>(_cache: &Self::Cache, world: &'w World, local: &'l LocalStorage) -> Option<Self::Item<'w, 'l>> {
+    fn from_cache<'w, 'l>(
+        _cache: &Self::Cache,
+        world: &'w World,
+        local: &'l LocalStorage,
+    ) -> Option<Self::Item<'w, 'l>> {
         Self::retrieve(world, local)
     }
-
 
     fn get_dependencies(_world: &World, _local: &LocalStorage) -> HashSet<SystemDependency> {
         let mut result = HashSet::with_capacity(1);
@@ -97,7 +115,11 @@ impl<'a, T: Ressource> SystemParam for ResMut<'a, T> {
         result
     }
 
-    fn get_dependencies_from_cache(world: &World, _cache: &Self::Cache, local: &LocalStorage) -> HashSet<SystemDependency>{
+    fn get_dependencies_from_cache(
+        world: &World,
+        _cache: &Self::Cache,
+        local: &LocalStorage,
+    ) -> HashSet<SystemDependency> {
         Self::get_dependencies(world, local)
     }
 }

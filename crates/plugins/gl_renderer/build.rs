@@ -1,11 +1,5 @@
 use assets_management::assets_management::generate_asset_enum;
 
 fn main() {
-    generate_asset_enum(
-        "shaders", 
-        "DefaultShaders", 
-        "code", 
-        true
-    );
+    generate_asset_enum("shaders", "DefaultShaders", "code", true);
 }
-

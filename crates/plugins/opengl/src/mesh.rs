@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use ecs::component::Component;
 use glam::{Vec2, Vec3};
-use glow::HasContext ;
+use glow::HasContext;
 use macro_utils::repeat_macro_with_argument_without_0;
 
 use crate::context::OpenGlContext;
@@ -11,7 +11,7 @@ use crate::context::OpenGlContext;
 enum MeshStoredLocation {
     Gpu,
     Cpu,
-    Both
+    Both,
 }
 
 pub struct Mesh {
@@ -19,7 +19,7 @@ pub struct Mesh {
 
     vertex_data: Option<Box<[u8]>>,
     index_data: Option<Box<[u32]>>,
-    
+
     stored_location: MeshStoredLocation,
 
     vbo: Option<glow::Buffer>,
@@ -27,12 +27,12 @@ pub struct Mesh {
     ebo: Option<glow::Buffer>,
 }
 
-pub trait VertexAttribute{
+pub trait VertexAttribute {
     fn get_nb_component() -> i32;
     fn get_data_type() -> u32;
 }
 
-impl VertexAttribute for Vec3{
+impl VertexAttribute for Vec3 {
     fn get_data_type() -> u32 {
         glow::FLOAT
     }
@@ -40,7 +40,7 @@ impl VertexAttribute for Vec3{
         3
     }
 }
-impl VertexAttribute for Vec2{
+impl VertexAttribute for Vec2 {
     fn get_data_type() -> u32 {
         glow::FLOAT
     }
@@ -48,7 +48,7 @@ impl VertexAttribute for Vec2{
         2
     }
 }
-impl VertexAttribute for f32{
+impl VertexAttribute for f32 {
     fn get_data_type() -> u32 {
         glow::FLOAT
     }
@@ -56,7 +56,7 @@ impl VertexAttribute for f32{
         1
     }
 }
-impl VertexAttribute for u32{
+impl VertexAttribute for u32 {
     fn get_data_type() -> u32 {
         glow::UNSIGNED_INT
     }
@@ -98,7 +98,7 @@ impl<$($params: VertexAttribute),*> VertexAttributeTupple for ($($params),*){
 repeat_macro_with_argument_without_0!(impl_vertex_attribute_tupple, 12);
 
 impl Mesh {
-    pub fn new<T: VertexAttributeTupple>(vertex: Box<[T]>, index: Box<[u32]>) -> Self{
+    pub fn new<T: VertexAttributeTupple>(vertex: Box<[T]>, index: Box<[u32]>) -> Self {
         let byte_len = size_of_val(vertex.as_ref());
         let slice = Box::into_raw(vertex) as *const u8;
         let vertex_box: Box<[u8]>;
@@ -107,7 +107,7 @@ impl Mesh {
             vertex_box = Box::from(byte_buffer);
         }
 
-        Self{
+        Self {
             nb_indices: index.len() as u32,
 
             vertex_data: Some(vertex_box),
@@ -121,7 +121,7 @@ impl Mesh {
         }
     }
 
-    pub fn delete_from_cpu(&mut self){
+    pub fn delete_from_cpu(&mut self) {
         assert!(self.stored_location == MeshStoredLocation::Both);
 
         self.vertex_data = None;
@@ -129,28 +129,30 @@ impl Mesh {
         self.stored_location = MeshStoredLocation::Gpu;
     }
 
-    pub fn copy_to_gpu<T: VertexAttributeTupple>(&mut self, gl: &OpenGlContext){
+    pub fn copy_to_gpu<T: VertexAttributeTupple>(&mut self, gl: &OpenGlContext) {
         assert!(self.stored_location == MeshStoredLocation::Cpu);
 
         // BIND VAO
-        let vao = unsafe {gl.0.create_vertex_array()}. expect("Couldn't create vao");
+        let vao = unsafe { gl.0.create_vertex_array() }.expect("Couldn't create vao");
         unsafe { gl.0.bind_vertex_array(Some(vao)) };
 
         {
             // BIND VBO
-            let vbo = unsafe {gl.0.create_buffer() }.expect("Couldn't create vbo");
-            unsafe { gl.0.bind_buffer(glow::ARRAY_BUFFER, Some(vbo)) } ; 
+            let vbo = unsafe { gl.0.create_buffer() }.expect("Couldn't create vbo");
+            unsafe { gl.0.bind_buffer(glow::ARRAY_BUFFER, Some(vbo)) };
 
             let slice = &**(self
                 .vertex_data
                 .as_ref()
                 .expect("Copy to gpu but not stored on cpu"));
-            let ptr = slice.as_ptr(); 
+            let ptr = slice.as_ptr();
             let byte_len = size_of_val(slice);
 
-            let byte_buffer = unsafe {slice::from_raw_parts(ptr, byte_len)};
+            let byte_buffer = unsafe { slice::from_raw_parts(ptr, byte_len) };
 
-            unsafe { gl.0.buffer_data_u8_slice(glow::ARRAY_BUFFER, byte_buffer, glow::STATIC_DRAW) };
+            unsafe {
+                gl.0.buffer_data_u8_slice(glow::ARRAY_BUFFER, byte_buffer, glow::STATIC_DRAW)
+            };
 
             self.vbo = Some(vbo);
         }
@@ -162,19 +164,25 @@ impl Mesh {
 
         {
             // BIND EBO
-            let ebo = unsafe {gl.0.create_buffer() }.expect("Couldn't create ebo");
-            unsafe { gl.0.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo)) } ; 
+            let ebo = unsafe { gl.0.create_buffer() }.expect("Couldn't create ebo");
+            unsafe { gl.0.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo)) };
 
             let slice = &**(self
                 .index_data
                 .as_ref()
                 .expect("Copy to gpu but not stored on cpu"));
-            let ptr = slice.as_ptr() as *const u8; 
+            let ptr = slice.as_ptr() as *const u8;
             let byte_len = size_of_val(slice);
 
-            let byte_buffer = unsafe {slice::from_raw_parts(ptr, byte_len)};
+            let byte_buffer = unsafe { slice::from_raw_parts(ptr, byte_len) };
 
-            unsafe { gl.0.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, byte_buffer, glow::STATIC_DRAW) };
+            unsafe {
+                gl.0.buffer_data_u8_slice(
+                    glow::ELEMENT_ARRAY_BUFFER,
+                    byte_buffer,
+                    glow::STATIC_DRAW,
+                )
+            };
 
             self.ebo = Some(ebo);
         }
@@ -186,12 +194,12 @@ impl Mesh {
         self.stored_location = MeshStoredLocation::Both;
     }
 
-    pub fn move_to_gpu<T: VertexAttributeTupple>(&mut self, gl: &OpenGlContext){
+    pub fn move_to_gpu<T: VertexAttributeTupple>(&mut self, gl: &OpenGlContext) {
         self.copy_to_gpu::<T>(gl);
         self.delete_from_cpu();
     }
 
-    pub fn bind(&self, gl: &OpenGlContext){
+    pub fn bind(&self, gl: &OpenGlContext) {
         assert!(self.stored_location != MeshStoredLocation::Cpu);
 
         unsafe {
@@ -199,10 +207,17 @@ impl Mesh {
         }
     }
 
-    pub fn draw(&self, gl: &OpenGlContext){
-        unsafe { gl.0.draw_elements(glow::TRIANGLES, self.nb_indices as i32, glow::UNSIGNED_INT, 0);}
+    pub fn draw(&self, gl: &OpenGlContext) {
+        unsafe {
+            gl.0.draw_elements(
+                glow::TRIANGLES,
+                self.nb_indices as i32,
+                glow::UNSIGNED_INT,
+                0,
+            );
+        }
     }
 }
 
-pub struct MeshComponent (pub Rc<Mesh>);
+pub struct MeshComponent(pub Rc<Mesh>);
 impl Component for MeshComponent {}

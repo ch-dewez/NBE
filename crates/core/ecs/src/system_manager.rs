@@ -2,45 +2,54 @@ use std::sync::Arc;
 
 //use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::{system::{IntoSystem, System, SystemDependency}, world::World};
+use crate::{
+    system::{IntoSystem, System, SystemDependency},
+    world::World,
+};
 
 type SystemIndependence<'w> = Vec<Vec<(Arc<[SystemDependency]>, usize)>>;
-pub struct SystemManager<'w>{
+pub struct SystemManager<'w> {
     cache_invalidated: bool,
     //system_independence_cache: SystemIndependence<'w>,
     systems: Vec<Box<dyn System + 'w + Send + Sync>>,
 }
 
-impl<'w> SystemManager<'w>{
-    pub fn new() -> Self{
-        SystemManager { 
+impl<'w> SystemManager<'w> {
+    pub fn new() -> Self {
+        SystemManager {
             cache_invalidated: true, // starts at true so that it is initialized first frame
             //system_independence_cache: Default::default(),
-            systems: Default::default()
+            systems: Default::default(),
         }
-
     }
 
-    pub fn invalidate_cache(&mut self){
+    pub fn invalidate_cache(&mut self) {
         self.cache_invalidated = true;
     }
 
-
-    pub fn add_system<T, S: System + 'w + Send + Sync>(&mut self, system: impl IntoSystem<T, System = S>, world: &World) {
+    pub fn add_system<T, S: System + 'w + Send + Sync>(
+        &mut self,
+        system: impl IntoSystem<T, System = S>,
+        world: &World,
+    ) {
         let mut system = Box::new(system.into_system());
         system.init(world);
         self.systems.push(system);
     }
 
     #[allow(dead_code)]
-    fn update_system_independence(system_independence: &mut SystemIndependence, new_dependencies: Arc<[SystemDependency]>, new_system: usize){
+    fn update_system_independence(
+        system_independence: &mut SystemIndependence,
+        new_dependencies: Arc<[SystemDependency]>,
+        new_system: usize,
+    ) {
         let mut overlapping_groups: Vec<usize> = Vec::new();
         let mut found_match: bool = false;
 
         // Find first overlaping group
-        for (index, system_independence_group) in system_independence.iter().enumerate(){
+        for (index, system_independence_group) in system_independence.iter().enumerate() {
             'system: for system in system_independence_group {
-                for dependency in system.0.iter(){
+                for dependency in system.0.iter() {
                     if new_dependencies.contains(dependency) {
                         overlapping_groups.push(index);
                         found_match = true;
@@ -70,9 +79,9 @@ impl<'w> SystemManager<'w>{
         system_independence[overlapping_groups[0]].push((new_dependencies, new_system));
     }
 
-    fn cache(&mut self, world: &World){
+    fn cache(&mut self, world: &World) {
         self.cache_invalidated = false;
-        for system in &mut self.systems{
+        for system in &mut self.systems {
             system.cache(world);
             system.calculate_dependencies_from_cache(world);
         }
@@ -88,28 +97,25 @@ impl<'w> SystemManager<'w>{
     }
 
     pub fn step(&mut self, world: &World) {
-        if self.cache_invalidated{
+        if self.cache_invalidated {
             self.cache(world);
         }
-         // self
-         //    .system_independence_cache
-         //    .par_iter()
-         //    .iter()
-         //    .for_each(|group|{
-         //        for (_, system_idx) in group {
-         //            unsafe {
-         //                let self_ref = &mut *(self as *const Self as *mut Self);
-         //
-         //                self_ref.systems[*system_idx].run(world);
-         //            }
-         //        }
-         //    });
-        self
-            .systems
-            .iter_mut()
-            .for_each(|system| {
-                system.run(world);
-            });
+        // self
+        //    .system_independence_cache
+        //    .par_iter()
+        //    .iter()
+        //    .for_each(|group|{
+        //        for (_, system_idx) in group {
+        //            unsafe {
+        //                let self_ref = &mut *(self as *const Self as *mut Self);
+        //
+        //                self_ref.systems[*system_idx].run(world);
+        //            }
+        //        }
+        //    });
+        self.systems.iter_mut().for_each(|system| {
+            system.run(world);
+        });
     }
 }
 
