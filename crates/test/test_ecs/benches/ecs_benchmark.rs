@@ -91,7 +91,7 @@ fn system_3(query: Query<(&C28, &C29), Without<C1>>) {
 }
 
 fn system_4(
-    query: Query<(
+    #[allow(clippy::type_complexity)] query: Query<(
         &C1,
         &C2,
         &C3,

@@ -333,6 +333,7 @@ impl Archetype {
 
     /// uses unsafe cell to get the component
     /// the caller has the responsibility to ensure that no component infringe borrowing rules
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_component_row_mut_unsafe<T: Component>(
         &self,
         row: ArchetypeRow,

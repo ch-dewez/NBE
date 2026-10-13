@@ -56,8 +56,7 @@ impl<A: Component> ComponentTupple for A {
     #[allow(unused_mut)]
     #[allow(unused_variables)]
     fn remove_signature(signature: &mut ArchetypeSignature) -> Result<(), RemoveSignatureError> {
-        let _ = signature.remove::<A>()?;
-        Ok(())
+        signature.remove::<A>()
     }
 
     #[allow(unused_variables)]
@@ -76,7 +75,7 @@ impl<A: Component> ComponentTupple for A {
         let mut components: Vec<Box<dyn ComponentStorageErased>> =
             vec![Box::new(Vec::<UnsafeCell<A>>::new())];
 
-        components.sort_by(|a, b| a.get_component_id().cmp(&b.get_component_id()));
+        components.sort_by_key(|a| a.get_component_id());
 
         Archetype {
             signature,

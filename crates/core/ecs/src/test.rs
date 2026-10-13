@@ -9,7 +9,7 @@ use crate::{
 //
 //
 //
-// IMPORTANT: The tests were writtent by A.I.
+// IMPORTANT: The tests were writtent by AI.
 //
 //
 //
@@ -725,6 +725,7 @@ fn test_nested_query_tuple() {
     // System with nested QueryData and nested QueryFilter:
     // Data: ((&Position, &mut Velocity), &Health)
     // Filter: (With<Position>, (With<Health>, Without<Name>))
+    #[allow(clippy::type_complexity)]
     fn nested_system(
         query: Query<
             ((&Position, &mut Velocity), &Health),

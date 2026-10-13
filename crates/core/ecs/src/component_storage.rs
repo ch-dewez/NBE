@@ -87,10 +87,9 @@ impl<T: Component> ComponentStorageErased for Vec<UnsafeCell<T>> {
     ) {
         let size: usize = self.get_size_of_element();
         let src: *const u8 = other.get_pointer(source_row);
-        let dst;
 
-        if dst_row < self.len() {
-            dst = self.get_pointer_mut(dst_row);
+        let dst = if dst_row < self.len() {
+            self.get_pointer_mut(dst_row)
         } else if dst_row == self.len() {
             if self.capacity() < self.len() + 1 {
                 self.reserve(1);
@@ -100,12 +99,12 @@ impl<T: Component> ComponentStorageErased for Vec<UnsafeCell<T>> {
             unsafe {
                 self.set_len(self.len() + 1);
             }
-            dst = self.get_pointer_mut(dst_row);
+            self.get_pointer_mut(dst_row)
         } else {
             panic!(
                 "Trying to copy data to this component storage but dst row is out of bounds (and not next row)"
             );
-        }
+        };
 
         debug_assert_eq!(other.type_id(), TypeId::of::<Vec<UnsafeCell<T>>>());
 

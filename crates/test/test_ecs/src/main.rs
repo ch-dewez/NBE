@@ -109,7 +109,7 @@ fn main() {
     }
 
     // Manual query execution to benchmark it
-    //#[warn(clippy::type_complexity)]
+    #[allow(clippy::type_complexity)]
     fn complex_query_system(query: Query<(&C1, &C2, &C3, &C4, &C5, &C6, &C7, &C8, &C9, &C10)>) {
         let mut _sum = 0;
         for (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10) in query.into_iter() {

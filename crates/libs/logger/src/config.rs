@@ -19,8 +19,10 @@ pub struct LogLevelConfig {
 
 impl LogLevelConfig {
     pub fn default_from_level(level: Level) -> Self {
-        let mut config = Self::default();
-        config.color_position = ColorPosition::LevelOnly;
+        let mut config = Self {
+            color_position: ColorPosition::LevelOnly,
+            ..Default::default()
+        };
 
         match level {
             Level::Error => {

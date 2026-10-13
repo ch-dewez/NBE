@@ -195,7 +195,7 @@ impl<A: QueryArgument> QueryData for A {
         archetype: &'w Archetype,
         row: ArchetypeRow,
     ) -> Result<Self::Item<'w>, AccessComponentError> {
-        Ok(A::retrieve(archetype, row)?)
+        A::retrieve(archetype, row)
     }
 }
 

@@ -22,7 +22,7 @@ impl Log for Logger {
 
         let level_config: &LogLevelConfig = self.level_config.get_level(record.level());
 
-        let print = |text: &str| self.print_correct_std(&level_config, text);
+        let print = |text: &str| self.print_correct_std(level_config, text);
 
         if matches!(level_config.color_position, ColorPosition::WholeLine) {
             print(level_config.fg_color.get_fg_color_ansi_text());

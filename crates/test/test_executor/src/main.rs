@@ -6,7 +6,7 @@ use test_project::plugin::GamePlugin;
 use window::window::WindowPlugin;
 
 fn main() {
-    LoggerBuilder::build_default();
+    let _ = LoggerBuilder::build_default();
 
     Application::new()
         .add_plugin::<WindowPlugin>()
