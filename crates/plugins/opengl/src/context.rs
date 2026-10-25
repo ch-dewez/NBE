@@ -1,7 +1,7 @@
 use ecs::{
     event::EventReader,
     ressource::{Res, ResMut, Ressource},
-    system::SystemParam,
+    system::{SystemExecutionTime, SystemParam},
 };
 use engine::plugin::Plugin;
 use glow::{Context, HasContext};
@@ -68,7 +68,10 @@ impl Plugin for OpenGlPlugin {
             .application
             .world
             .add_ressource(GraphicsRessourceManager::default());
-        context.application.world.add_system(resize_viewport);
+        context
+            .application
+            .world
+            .add_system(resize_viewport, SystemExecutionTime::BeforeRendering);
     }
 
     fn uninit<'a, 'b>(&self, _context: engine::plugin::PluginContext<'a, 'b>) {}

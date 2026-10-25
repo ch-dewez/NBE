@@ -16,7 +16,7 @@ use crate::{
     entity::{Entity, EntityId, EntityVersion},
     event::{Event, EventRes, SingleEventRes},
     ressource::{ResMut, Ressource, get_ressource_id},
-    system::{IntoSystem, System, SystemParam},
+    system::{IntoSystem, System, SystemExecutionTime, SystemParam},
     system_manager::SystemManager,
 };
 
@@ -388,29 +388,36 @@ impl<'w> World<'w> {
     pub fn add_system<T, S: System + 'w + Send + Sync>(
         &mut self,
         system: impl IntoSystem<T, System = S>,
+        execution_time: SystemExecutionTime,
     ) -> &mut Self {
         // Safe, system manager doesn't access it self from world
         unsafe {
-            (*self.system_manager.get()).add_system(system, self);
+            (*self.system_manager.get()).add_system(system, execution_time, self);
         }
         self
     }
 
     pub fn add_single_event<T: Event>(&mut self) -> &mut Self {
         self.add_ressource(SingleEventRes::<T>::new());
-        self.add_system(|mut res: ResMut<SingleEventRes<T>>| {
-            res.swap();
-            res.clear_this_frame();
-        });
+        self.add_system(
+            |mut res: ResMut<SingleEventRes<T>>| {
+                res.swap();
+                res.clear_this_frame();
+            },
+            SystemExecutionTime::EventHandling,
+        );
         self
     }
 
     pub fn add_event<T: Event>(&mut self) -> &mut Self {
         self.add_ressource(EventRes::<T>::new());
-        self.add_system(|mut res: ResMut<EventRes<T>>| {
-            res.swap();
-            res.clear_current();
-        });
+        self.add_system(
+            |mut res: ResMut<EventRes<T>>| {
+                res.swap();
+                res.clear_current();
+            },
+            SystemExecutionTime::EventHandling,
+        );
         self
     }
 

@@ -6,7 +6,7 @@ use ecs::{
     command::Command,
     event::EventReader,
     ressource::{Res, ResMut},
-    system::SystemParam,
+    system::{SystemExecutionTime, SystemParam},
 };
 use engine::{app_command::StopAppCommand, application::DeltaTimeS, plugin::Plugin};
 use gl_renderer::{camera::Camera, default_shaders::DefaultShaders};
@@ -305,10 +305,10 @@ impl Plugin for MinimalPlugin {
                 },
             ))
             .1
-            .add_system(movement::move_system)
-            .add_system(move_camera_system)
-            .add_system(fps_printer)
-            .add_system(quit_app);
+            .add_system(movement::move_system, SystemExecutionTime::Game)
+            .add_system(move_camera_system, SystemExecutionTime::Game)
+            .add_system(fps_printer, SystemExecutionTime::Game)
+            .add_system(quit_app, SystemExecutionTime::Game);
     }
 
     fn uninit<'a, 'b>(&self, _context: engine::plugin::PluginContext<'a, 'b>) {}

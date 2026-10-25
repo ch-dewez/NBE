@@ -3,7 +3,7 @@ use std::sync::Arc;
 //use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
-    system::{IntoSystem, System, SystemDependency},
+    system::{IntoSystem, System, SystemDependency, SystemExecutionTime},
     world::World,
 };
 
@@ -11,7 +11,7 @@ type SystemIndependence<'w> = Vec<Vec<(Arc<[SystemDependency]>, usize)>>;
 pub struct SystemManager<'w> {
     cache_invalidated: bool,
     //system_independence_cache: SystemIndependence<'w>,
-    systems: Vec<Box<dyn System + 'w + Send + Sync>>,
+    systems: [Vec<Box<dyn System + 'w + Send + Sync>>; SystemExecutionTime::len()],
 }
 
 impl<'w> SystemManager<'w> {
@@ -30,11 +30,12 @@ impl<'w> SystemManager<'w> {
     pub fn add_system<T, S: System + 'w + Send + Sync>(
         &mut self,
         system: impl IntoSystem<T, System = S>,
+        execution_time: SystemExecutionTime,
         world: &World,
     ) {
         let mut system = Box::new(system.into_system());
         system.init(world);
-        self.systems.push(system);
+        self.systems[execution_time as usize].push(system);
     }
 
     #[allow(dead_code)]
@@ -81,7 +82,7 @@ impl<'w> SystemManager<'w> {
 
     fn cache(&mut self, world: &World) {
         self.cache_invalidated = false;
-        for system in &mut self.systems {
+        for system in self.systems.iter_mut().flatten() {
             system.cache(world);
             system.calculate_dependencies_from_cache(world);
         }
@@ -113,7 +114,7 @@ impl<'w> SystemManager<'w> {
         //            }
         //        }
         //    });
-        self.systems.iter_mut().for_each(|system| {
+        self.systems.iter_mut().flatten().for_each(|system| {
             system.run(world);
         });
     }

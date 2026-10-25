@@ -17,7 +17,7 @@ use super::{
     component::Component,
     query::{Query, With, Without},
     ressource::{Res, ResMut, Ressource},
-    system::SystemParam,
+    system::{SystemExecutionTime, SystemParam},
     world::World,
 };
 
@@ -223,7 +223,7 @@ fn test_add_remove_sequence() {
 #[test]
 fn test_movement_system() {
     let mut world = World::new();
-    world.add_system(movement_system);
+    world.add_system(movement_system, SystemExecutionTime::Game);
 
     let _entity1 = world.spawn_entity((Position { x: 0.0, y: 0.0 }, Velocity { x: 1.0, y: 0.5 }));
     let _entity2 = world.spawn_entity((Position { x: 10.0, y: 5.0 }, Velocity { x: -2.0, y: 1.0 }));
@@ -251,7 +251,7 @@ fn test_movement_system() {
 #[test]
 fn test_health_system_with_filter() {
     let mut world = World::new();
-    world.add_system(health_system);
+    world.add_system(health_system, SystemExecutionTime::Game);
 
     let _entity1 = world.spawn_entity((Health(10), Position { x: 0.0, y: 0.0 })); // Has Position, will be processed
     let _entity2 = world.spawn_entity(Health(5)); // No Position, should not be processed
@@ -277,7 +277,7 @@ fn test_health_system_with_filter() {
 #[test]
 fn test_name_logger_system_without_filter() {
     let mut world = World::new();
-    world.add_system(name_logger_system);
+    world.add_system(name_logger_system, SystemExecutionTime::Game);
 
     let _entity1 = world.spawn_entity((Name("Alice".to_string()), Position { x: 1.0, y: 2.0 })); // Will be logged
     let _entity2 = world.spawn_entity((
@@ -343,7 +343,7 @@ fn test_resource_system() {
     let mut world = World::new();
     world.add_ressource(Score(0));
     world.add_ressource(Settings { difficulty: 2.0 });
-    world.add_system(resource_system);
+    world.add_system(resource_system, SystemExecutionTime::Game);
 
     world.step();
 
@@ -358,7 +358,7 @@ fn test_combined_query_resource_system() {
     world.spawn_entity(Position { x: 0.0, y: 0.0 });
     world.spawn_entity(Position { x: 1.0, y: 1.0 });
 
-    world.add_system(combined_system);
+    world.add_system(combined_system, SystemExecutionTime::Game);
 
     // Should run without panicking
     world.step();
@@ -408,7 +408,7 @@ fn test_local_persistence_in_system() {
 
     let mut world = World::new();
     world.add_ressource(Score(0));
-    world.add_system(increment_local_system);
+    world.add_system(increment_local_system, SystemExecutionTime::Game);
 
     world.step();
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 1);
@@ -425,7 +425,7 @@ fn test_resource_system_with_step() {
 
     let mut world = World::new();
     world.add_ressource(Score(0));
-    world.add_system(update_score_system);
+    world.add_system(update_score_system, SystemExecutionTime::Game);
 
     world.step();
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 10);
@@ -462,8 +462,8 @@ fn test_single_event_with_add_event() {
     world.add_ressource(Score(0));
     world.add_single_event::<MySingleEvent>();
 
-    world.add_system(writer);
-    world.add_system(reader);
+    world.add_system(writer, SystemExecutionTime::Game);
+    world.add_system(reader, SystemExecutionTime::Game);
 
     world.step();
     assert_eq!(world.get_ressource::<Score>().unwrap().0, 100);
@@ -480,8 +480,9 @@ fn test_single_event_with_add_event() {
                 w.write(MySingleEvent(1));
             }
         },
+        SystemExecutionTime::Game,
     );
-    world2.add_system(reader);
+    world2.add_system(reader, SystemExecutionTime::Game);
 
     world2.step();
     assert_eq!(world2.get_ressource::<Score>().unwrap().0, 42);
@@ -519,8 +520,8 @@ fn test_single_event_reader_before() {
     world.add_ressource(Score(0));
     world.add_single_event::<MySingleEvent>();
 
-    world.add_system(reader);
-    world.add_system(writer);
+    world.add_system(reader, SystemExecutionTime::Game);
+    world.add_system(writer, SystemExecutionTime::Game);
 
     world.step();
     // the reader shoud not execute so the score is 0
@@ -567,8 +568,8 @@ fn test_event_with_add_event() {
     world.add_ressource(Score(0));
     world.add_event::<MyEvent>();
 
-    world.add_system(writer);
-    world.add_system(reader);
+    world.add_system(writer, SystemExecutionTime::Game);
+    world.add_system(reader, SystemExecutionTime::Game);
 
     world.step();
     // Frame 1: previous=[] this=[10, 20] -> sum=30
@@ -627,6 +628,7 @@ fn test_command_system() {
                     })));
             }
         },
+        SystemExecutionTime::Game,
     );
 
     SingleEventWriter::retrieve(&world, &HashMap::new())
@@ -663,6 +665,7 @@ fn test_command_system() {
                     .push(Box::new(RemoveEntityCommand::new(velocity_entity)));
             }
         },
+        SystemExecutionTime::Game,
     );
 
     SingleEventWriter::retrieve(&world, &HashMap::new())
@@ -738,7 +741,7 @@ fn test_nested_query_tuple() {
         }
     }
 
-    world.add_system(nested_system);
+    world.add_system(nested_system, SystemExecutionTime::Game);
     world.step();
 
     // Verify that velocity was updated for entity 1
@@ -750,4 +753,194 @@ fn test_nested_query_tuple() {
     assert_eq!(*vel, Velocity { x: 51.5, y: 2.5 });
     assert_eq!(*hp, Health(50));
     assert!(iter.next().is_none());
+}
+
+// --- System Execution Time Tests ---
+
+#[derive(Default)]
+struct ExecutionLog(Vec<SystemExecutionTime>);
+impl Ressource for ExecutionLog {}
+
+#[test]
+fn test_system_execution_order_across_phases() {
+    let mut world = World::new();
+    world.add_ressource(ExecutionLog::default());
+
+    // Register systems out of chronological order to ensure registration order does not dictate phase order
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::Final),
+        SystemExecutionTime::Final,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::Physics),
+        SystemExecutionTime::Physics,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::First),
+        SystemExecutionTime::First,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::BeforeRendering),
+        SystemExecutionTime::BeforeRendering,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::BeforeGame),
+        SystemExecutionTime::BeforeGame,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::AfterPhysics),
+        SystemExecutionTime::AfterPhysics,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::Game),
+        SystemExecutionTime::Game,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::Rendering),
+        SystemExecutionTime::Rendering,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::BeforePhysics),
+        SystemExecutionTime::BeforePhysics,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::AfterRendering),
+        SystemExecutionTime::AfterRendering,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::AfterGame),
+        SystemExecutionTime::AfterGame,
+    );
+    world.add_system(
+        |mut log: ResMut<ExecutionLog>| log.0.push(SystemExecutionTime::EventHandling),
+        SystemExecutionTime::EventHandling,
+    );
+
+    world.step();
+
+    let log = world.get_ressource::<ExecutionLog>().unwrap();
+    let expected = vec![
+        SystemExecutionTime::First,
+        SystemExecutionTime::BeforeGame,
+        SystemExecutionTime::Game,
+        SystemExecutionTime::AfterGame,
+        SystemExecutionTime::BeforePhysics,
+        SystemExecutionTime::Physics,
+        SystemExecutionTime::AfterPhysics,
+        SystemExecutionTime::BeforeRendering,
+        SystemExecutionTime::Rendering,
+        SystemExecutionTime::AfterRendering,
+        SystemExecutionTime::EventHandling,
+        SystemExecutionTime::Final,
+    ];
+    assert_eq!(log.0, expected);
+}
+
+#[derive(Default)]
+struct SubExecutionLog(Vec<u32>);
+impl Ressource for SubExecutionLog {}
+
+#[test]
+fn test_system_execution_order_within_same_phase() {
+    let mut world = World::new();
+    world.add_ressource(SubExecutionLog::default());
+
+    world.add_system(
+        |mut log: ResMut<SubExecutionLog>| log.0.push(1),
+        SystemExecutionTime::Game,
+    );
+    world.add_system(
+        |mut log: ResMut<SubExecutionLog>| log.0.push(2),
+        SystemExecutionTime::Game,
+    );
+    world.add_system(
+        |mut log: ResMut<SubExecutionLog>| log.0.push(3),
+        SystemExecutionTime::Game,
+    );
+
+    world.step();
+
+    let log = world.get_ressource::<SubExecutionLog>().unwrap();
+    assert_eq!(log.0, vec![1, 2, 3]);
+}
+
+#[test]
+fn test_event_lifecycle_with_execution_times() {
+    use crate::event::{Event, SingleEventReader, SingleEventWriter};
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct PhaseEvent(u32);
+    impl Event for PhaseEvent {}
+
+    #[derive(Default)]
+    struct EventReadLog {
+        read_in_first_f1: Option<u32>,
+        read_in_after_game_f1: Option<u32>,
+        read_in_first_f2: Option<u32>,
+        read_in_final_f2: Option<u32>,
+    }
+    impl Ressource for EventReadLog {}
+
+    let mut world = World::new();
+    world.add_ressource(EventReadLog::default());
+    // add_single_event registers event swapper at SystemExecutionTime::EventHandling
+    world.add_single_event::<PhaseEvent>();
+
+    // 1. Read in First phase: in Frame 1 nothing yet, in Frame 2 sees the event from previous frame
+    world.add_system(
+        |mut reader: SingleEventReader<PhaseEvent>, mut log: ResMut<EventReadLog>| {
+            if log.read_in_first_f1.is_none() && log.read_in_after_game_f1.is_none() {
+                log.read_in_first_f1 = reader.read().map(|e| e.0);
+            } else {
+                log.read_in_first_f2 = reader.read().map(|e| e.0);
+            }
+        },
+        SystemExecutionTime::First,
+    );
+
+    // 2. Write during Game phase ONLY in Frame 1
+    world.add_system(
+        |mut writer: SingleEventWriter<PhaseEvent>, log: Res<EventReadLog>| {
+            if log.read_in_after_game_f1.is_none() {
+                writer.write(PhaseEvent(99));
+            }
+        },
+        SystemExecutionTime::Game,
+    );
+
+    // 3. Read in AfterGame phase (before EventHandling in Frame 1): should see the event!
+    world.add_system(
+        |mut reader: SingleEventReader<PhaseEvent>, mut log: ResMut<EventReadLog>| {
+            if log.read_in_after_game_f1.is_none() {
+                log.read_in_after_game_f1 = reader.read().map(|e| e.0);
+            }
+        },
+        SystemExecutionTime::AfterGame,
+    );
+
+    // 4. Read in Final phase: in Frame 2 (after EventHandling cleared/swapped again), should be None
+    world.add_system(
+        |mut reader: SingleEventReader<PhaseEvent>, mut log: ResMut<EventReadLog>| {
+            if log.read_in_first_f2.is_some() {
+                log.read_in_final_f2 = reader.read().map(|e| e.0);
+            }
+        },
+        SystemExecutionTime::Final,
+    );
+
+    // Frame 1
+    world.step();
+    {
+        let log = world.get_ressource::<EventReadLog>().unwrap();
+        assert_eq!(log.read_in_first_f1, None);
+        assert_eq!(log.read_in_after_game_f1, Some(99));
+    }
+
+    // Frame 2
+    world.step();
+    {
+        let log = world.get_ressource::<EventReadLog>().unwrap();
+        assert_eq!(log.read_in_first_f2, Some(99));
+        assert_eq!(log.read_in_final_f2, None);
+    }
 }

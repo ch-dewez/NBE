@@ -2,7 +2,7 @@ use core_components::transform::Transform;
 use ecs::{
     query::Query,
     ressource::{Res, ResMut, Ressource},
-    system::SystemParam,
+    system::{SystemExecutionTime, SystemParam},
 };
 use engine::plugin::Plugin;
 use glam::Mat4;
@@ -125,11 +125,11 @@ impl Plugin for GlRenderer {
         context
             .application
             .world
-            .add_system(clear)
-            .add_system(camera_ubo_update)
-            .add_system(render_system)
-            .add_system(swap_buffers)
-            .add_system(project_update_on_resize)
+            .add_system(clear, SystemExecutionTime::Rendering)
+            .add_system(camera_ubo_update, SystemExecutionTime::Rendering)
+            .add_system(render_system, SystemExecutionTime::Rendering)
+            .add_system(swap_buffers, SystemExecutionTime::Rendering)
+            .add_system(project_update_on_resize, SystemExecutionTime::Rendering)
             .add_ressource(ModelUBO(model_ubo))
             .add_ressource(CameraUBO(camera_ubo));
     }

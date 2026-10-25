@@ -1,4 +1,4 @@
-use ecs::{component::Component, query::Query, world::World};
+use ecs::{component::Component, query::Query, system::SystemExecutionTime, world::World};
 use std::time::Instant;
 
 macro_rules! define_components {
@@ -63,8 +63,8 @@ fn main() {
     println!("Adding C4 to all entities: {:?}", start.elapsed());
 
     // 3. System execution
-    world.add_system(system_heavy_read);
-    world.add_system(system_heavy_write);
+    world.add_system(system_heavy_read, SystemExecutionTime::Game);
+    world.add_system(system_heavy_write, SystemExecutionTime::Game);
 
     let start = Instant::now();
     for _ in 0..100 {
@@ -116,7 +116,7 @@ fn main() {
             _sum += c1.0 + c2.0 + c3.0 + c4.0 + c5.0 + c6.0 + c7.0 + c8.0 + c9.0 + c10.0;
         }
     }
-    world.add_system(complex_query_system);
+    world.add_system(complex_query_system, SystemExecutionTime::Game);
     world.step(); // One step to include the new system
     println!("Complex query step: {:?}", start.elapsed());
 

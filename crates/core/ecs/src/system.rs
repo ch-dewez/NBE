@@ -9,6 +9,35 @@ use crate::{
     archetype::ArchetypeId, ressource::RessourceId, system_local::LocalStorage, world::World,
 };
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub enum SystemExecutionTime {
+    First = 0,
+
+    BeforeGame,
+    #[default]
+    Game,
+    AfterGame,
+
+    BeforePhysics,
+    Physics,
+    AfterPhysics,
+
+    BeforeRendering,
+    Rendering,
+    AfterRendering,
+
+    EventHandling,
+
+    Final,
+}
+
+impl SystemExecutionTime {
+    pub const fn len() -> usize {
+        (Self::Final as u8 + 1) as usize
+    }
+}
+
 pub type StoredSystem = Box<dyn System>;
 
 pub trait System {

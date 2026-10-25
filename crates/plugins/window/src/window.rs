@@ -2,7 +2,7 @@ use ecs::{
     command::Command,
     event::{Event, EventWriter},
     ressource::{ResMut, Ressource},
-    system::SystemParam,
+    system::{SystemExecutionTime, SystemParam},
     world::World,
 };
 use engine::{app_command::StopAppCommand, plugin::Plugin};
@@ -83,8 +83,8 @@ impl WindowPlugin {
             .add_ressource(GLFWEventRes(events))
             .add_ressource(InputManager::default())
             .add_event::<EcsWindowEvent>()
-            .add_system(window_update)
-            .add_system(reset_mouse_delta)
-            .add_system(update_input_manager);
+            .add_system(window_update, SystemExecutionTime::First)
+            .add_system(reset_mouse_delta, SystemExecutionTime::First)
+            .add_system(update_input_manager, SystemExecutionTime::First);
     }
 }

@@ -5,6 +5,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use ecs::{
     component::Component,
     query::{Query, With, Without},
+    system::SystemExecutionTime,
     world::World,
 };
 
@@ -202,10 +203,10 @@ fn bench_ecs(c: &mut Criterion) {
                 spawn_varied_entity(&mut world, i);
             }
 
-            world.add_system(system_1);
-            world.add_system(system_2);
-            world.add_system(system_3);
-            world.add_system(system_4);
+            world.add_system(system_1, SystemExecutionTime::Game);
+            world.add_system(system_2, SystemExecutionTime::Game);
+            world.add_system(system_3, SystemExecutionTime::Game);
+            world.add_system(system_4, SystemExecutionTime::Game);
 
             b.iter(|| {
                 world.step();
