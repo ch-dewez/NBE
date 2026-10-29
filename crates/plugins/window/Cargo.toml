@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-glfw = "0.62.0"
+glfw = { version = "0.62.0", features = ["raw-window-handle-v0-6"] }
 engine.workspace = true
 ecs.workspace = true

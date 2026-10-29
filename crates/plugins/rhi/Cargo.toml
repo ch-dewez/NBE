@@ -1,0 +1,13 @@
+[package]
+name = "rhi_plugin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+engine.workspace = true
+ecs.workspace = true
+derive_more = { workspace = true, features = ["deref", "deref_mut"] }
+rhi_lib.workspace = true
+window.workspace = true
+logger.workspace = true
+raw-window-handle.workspace = true

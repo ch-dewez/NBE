@@ -1,0 +1,8 @@
+[package]
+name = "shaders_compilation"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cargo-gpu-install = { version = "0.11.0" }
+anyhow.workspace = true

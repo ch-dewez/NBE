@@ -1,0 +1,22 @@
+[package]
+name = "vulkan"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rhi_lib.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+arrayvec.workspace = true
+vulkanalia = { version = "=0.35.0", features = [
+  "libloading",
+  "provisional",
+  "window",
+] }
+raw-window-handle.workspace = true
+logger.workspace = true
+
+[build-dependencies]
+shaders_compilation.workspace = true
+anyhow.workspace = true
+assets_management.workspace = true

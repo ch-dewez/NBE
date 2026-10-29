@@ -1,0 +1,12 @@
+[package]
+name = "rendergraph_plugin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rhi_lib.workspace = true
+rhi_plugin.workspace = true
+ecs.workspace = true
+engine.workspace = true
+rendergraph_lib.workspace = true
+derive_more.workspace = true

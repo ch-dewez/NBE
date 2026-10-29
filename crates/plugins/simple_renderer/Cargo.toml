@@ -1,0 +1,16 @@
+[package]
+name = "simple_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ecs.workspace = true
+engine.workspace = true
+rhi_lib.workspace = true
+rhi_plugin.workspace = true
+rendergraph_lib.workspace = true
+rendergraph_plugin.workspace = true
+# vulkan.workspace = true
+logger.workspace = true
+window.workspace = true
+arrayvec.workspace = true

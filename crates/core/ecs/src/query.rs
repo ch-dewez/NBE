@@ -1,3 +1,4 @@
+use logger::log::error;
 use macro_utils::{repeat_macro_with_argument, repeat_macro_with_argument_without_0};
 
 use crate::{
@@ -152,7 +153,7 @@ impl<'a, T: QueryData, F: QueryFilter> Iterator for QueryIter<'a, T, F> {
         let value = match T::retrieve(archetype, self.row_index) {
             Ok(result) => Some(result),
             Err(err) => {
-                println!("Err {}", err);
+                error!("Err {}", err);
                 None
             }
         };

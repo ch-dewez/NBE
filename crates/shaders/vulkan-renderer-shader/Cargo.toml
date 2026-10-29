@@ -1,0 +1,10 @@
+[package]
+name = "vulkan-renderer-shader"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+spirv-std = { version = "0.11" }
+glam = { workspace = true, default-features = false, features = ["libm"] }
+
+[build-dependencies]

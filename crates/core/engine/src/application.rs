@@ -28,7 +28,6 @@ impl<'w> Application<'w> {
             plugins: vec![],
         }
     }
-
     pub fn add_plugin<T: Plugin + Default>(&mut self) -> &mut Self {
         let mut plugin = Box::new(T::default());
 

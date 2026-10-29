@@ -4,7 +4,7 @@ members = [
   "crates/executors/editor_executor",
   "crates/plugins/editor",
   "crates/plugins/physics",
-  "crates/plugins/renderer",
+  "crates/plugins/simple_renderer",
   "crates/project_manager",
   "crates/test/test_executor",
   "crates/executors/game_executor",
@@ -19,25 +19,49 @@ members = [
   "crates/plugins/core_components",
   "crates/libs/macro_utils",
   "crates/libs/logger",
+  "crates/libs/build_tools/assets_management",
+  "crates/plugins/rhi",
+  "crates/libs/vulkan",
+  "crates/shaders/vulkan-renderer-shader",
+  "crates/libs/build_tools/shaders_compilation",
+  "crates/libs/rendergraph",
+  "crates/plugins/rendergraph",
+  "crates/libs/dag",
 ]
 resolver = "3"
 
 [workspace.dependencies]
+# Third parties crates
 thiserror = "2.0.18"
+anyhow = "1.0"
 glam = "0.33.1"
+derive_more = "2.1.1"
+raw-window-handle = "0.6.2"
+arrayvec = "0.7.8"
 
+# Core
 engine = { path = "crates/core/engine" }
 ecs = { path = "crates/core/ecs" }
+
+# libs
 macro_utils = { path = "crates/libs/macro_utils" }
-
+rhi_lib = { path = "crates/libs/rhi" }
+vulkan = { path = "crates/libs/vulkan" }
+rendergraph_lib = { path = "crates/libs/rendergraph" }
 logger = { path = "crates/libs/logger" }
+assets_management = { path = "crates/libs/build_tools/assets_management" }
+shaders_compilation = { path = "crates/libs/build_tools/shaders_compilation" }
+dag = { path = "crates/libs/dag" }
 
+# Plugins
 window = { path = "crates/plugins/window" }
 opengl = { path = "crates/plugins/opengl" }
 gl_renderer = { path = "crates/plugins/gl_renderer" }
+simple_renderer = { path = "crates/plugins/simple_renderer" }
 core_components = { path = "crates/plugins/core_components" }
+rhi_plugin = { path = "crates/plugins/rhi" }
+rendergraph_plugin = { path = "crates/plugins/rendergraph" }
 
-assets_management = { path = "crates/libs/build_tools/assets_management" }
-
+# Templates
 physics_template = { path = "crates/plugin_templates/physics_template" }
 renderer_template = { path = "crates/plugin_templates/renderer_template" }

@@ -12,6 +12,10 @@ glam.workspace = true
 core_components.workspace = true
 window.workspace = true
 logger.workspace = true
+rhi_plugin.workspace = true
+vulkan.workspace = true
+simple_renderer.workspace = true
+rendergraph_plugin.workspace = true
 
 [build-dependencies]
 assets_management.workspace = true

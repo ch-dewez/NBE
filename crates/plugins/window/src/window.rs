@@ -6,7 +6,7 @@ use ecs::{
     world::World,
 };
 use engine::{app_command::StopAppCommand, plugin::Plugin};
-use glfw::{Context, Glfw, GlfwReceiver, PWindow};
+use glfw::{Glfw, GlfwReceiver, PWindow};
 
 use crate::input::{InputManager, reset_mouse_delta, update_input_manager};
 
@@ -67,7 +67,8 @@ impl WindowPlugin {
             )
             .expect("Failed to create GLFW window.");
 
-        window.make_current();
+        // TODO: Remove dependency on opengl, commented out
+        //window.make_current();
 
         window.set_framebuffer_size_polling(true);
 

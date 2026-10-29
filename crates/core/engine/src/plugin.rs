@@ -2,6 +2,7 @@ use crate::application::Application;
 use std::any::Any;
 
 pub trait Plugin: Any {
+    // TODO: Add plugin result
     fn init<'a, 'b>(&self, context: PluginContext<'a, 'b>);
     fn uninit<'a, 'b>(&self, context: PluginContext<'a, 'b>);
 }
